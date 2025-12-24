@@ -15,11 +15,13 @@
 * ベクター: 埋め込みベクトル（float32/float16/int8 など）
 * ANN: Approximate Nearest Neighbor（近似最近傍探索）
 * QueryKey: クエリをキャッシュのキーにするための正規化・量子化表現
+* CanonicalKey: LLMの意味正規化で生成する代表キー（同義語/表記揺れを吸収）
 * CacheEntry: 検索結果や中間表現のキャッシュレコード
 * Admission: キャッシュに入れるかの判定
 * Eviction: キャッシュから追い出す判定
 * TTL: 有効期限
 * SLO/SLA: 目標/保証指標（レイテンシ、可用性など）
+* LLM Worker: Gemini等の外部LLMを使う非同期最適化プロセス（Hot Pathには入れない）
 
 ---
 
@@ -86,8 +88,11 @@
   * 遅延: 10ms ~ 50ms (許容範囲)
   * 複雑なポリシー判定、特徴量集計、Hot Path用ルールの更新生成
   * 結果はHot Pathのポリシーテーブルにフィードバック
+  * LLM Worker（Gemini API）: 意味正規化/プリフェッチ予測/追い出し助言を非同期ジョブで実行し、CanonicalKeyMapやPrefetch Queue/TTL上書きを更新
 * 学習: ログ収集→特徴量生成→評価→デプロイ (Pythonサイドカーで学習しONNX/ルールをエクスポート)
-* ガードレール: Warm Path応答遅延時はHot Pathのキャッシュ済みルール/LRUへ安全にフォールバック
+* ガードレール:
+  * Warm Path応答遅延時はHot Pathのキャッシュ済みルール/LRUへ安全にフォールバック
+  * LLM利用はヘッドクエリ/高コスト/高ミスに限定し、QPS/コスト上限を設定
 
 4. Persistent Storage
 
@@ -103,7 +108,6 @@
 sequenceDiagram
     participant Client
     participant Front as Garnet (Front/Cache)
-    participant AI as AI Controller (ONNX)
     participant FAISS as ANN Engine
     
     Client->>Front: VEC.SEARCH (Query)
@@ -114,12 +118,36 @@ sequenceDiagram
         Front->>FAISS: Search (Vector)
         FAISS-->>Front: Candidates (IDs, Scores)
         Front->>Front: Fetch Meta & Rerank
-        Front->>AI: Policy Inference (QueryStats, SystemLoad)
-        AI-->>Front: Decision (Admit?, TTL, Type)
+        Front->>Front: Policy Lookup (Hot Path Table)
         opt Admitted
             Front->>Front: Store to Cache
         end
         Front-->>Client: Result (Computed)
+    end
+```
+
+#### 非同期最適化フロー（Warm Path / LLM）
+
+```mermaid
+sequenceDiagram
+    participant Client
+    participant Front as Garnet (Hot Path)
+    participant Queue as Job Queue
+    participant LLM as Gemini Worker (Warm Path)
+    participant FAISS
+    
+    Client->>Front: 検索 ("安い宿")
+    Front->>Front: キャッシュ確認 (Miss)
+    Front->>FAISS: 検索実行
+    FAISS-->>Front: 結果
+    Front-->>Client: 結果返却
+    
+    par Async Optimization
+        Front->>Queue: クエリログ送信 ("安い宿")
+        Queue->>LLM: Gemini API Call
+        Note right of LLM: 1. 正規化表現の生成<br>2. 次の質問の予測<br>3. クエリの「賞味期限」判定
+        LLM-->>Front: 最適化コマンド送信
+        Note right of Front: ・エイリアス登録<br>・予測クエリのプリフェッチ<br>・TTL/優先度調整
     end
 ```
 
@@ -227,6 +255,22 @@ sequenceDiagram
 * meta_snippet: bytes（任意）
 * debug: {faiss_params_used, latency_breakdown}（任意）
 
+### 4.4 Semantic Key Alias Map（CanonicalKeyMap）
+
+* tenant_id, index_name
+* alias_key: bytes（QueryKeyまたはテキストハッシュ）
+* canonical_key: bytes（CanonicalKey）
+* confidence: float
+* source: llm|rule|manual
+* updated_at
+* expire_at
+* hit_count
+
+用途
+
+* Cache Lookup前に alias_key → canonical_key を解決し、L0/L1のヒット率を向上
+* Warm Path/LLM が更新し、Hot Path では参照のみ
+
 ---
 
 ## 5. API仕様
@@ -321,9 +365,11 @@ sequenceDiagram
 3. キャッシュルックアップ（result→candidate→cluster…の順）
 4. ミス時: FAISSに問い合わせ
 5. 結果整形（必要に応じてmeta join）
-6. AIポリシー推論（admission/ttl/eviction/partial）
+6. Hot Pathポリシー参照（Warm Pathが更新したLookup Table/Bloom Filter）
 7. キャッシュ格納（admittedなら）
 8. 応答
+
+※ LLM（Gemini）による意味正規化/予測/TTL助言は非同期で実行し、検索パイプラインをブロックしない。
 
 ### 6.3 フィルタ適用
 
@@ -371,6 +417,17 @@ sequenceDiagram
 * query_key_level: 0|1|2（テナント/index単位で設定）
 * 量子化の粗さ（Level 1/2）
 * filterをQueryKeyに含める範囲（タグのみ含める等）
+* semantic_normalization_enabled: bool
+* canonical_key_ttl_seconds: int
+* llm_min_query_count: int
+* llm_min_proxy_cost: float
+
+**Warm Path補足: Semantic Cache Key Normalization（LLM）**
+
+* クエリ文字列/メタがある場合に、LLMで同義語・表記揺れを吸収したCanonicalKeyを生成
+* `CanonicalKeyMap` を更新し、Hot Pathはalias解決後にL0/L1を参照
+* ベクターのみでテキストが無い場合はスキップ
+* 反映は非同期で、検索パスをブロックしない
 
 ### 7.3 Admission（格納判定）
 
@@ -402,6 +459,7 @@ sequenceDiagram
 実装
 
 * まずは LRU/LFU + 重み付け
+* Warm PathのLLMがバッチでTTL/evict_priorityの上書きを提案（時事性/普遍性の判定）
 * ProでAIスコア（回帰/GBDT/バンディット）に置換可能
 
 ### 7.5 TTL制御
@@ -411,6 +469,7 @@ sequenceDiagram
 * 更新頻度が高い index は短め
 * ドメインドリフトが強いクエリは短め
 * “熱い”クエリは長め
+* LLM助言で時事性/普遍性を評価しTTL補正（非同期）
 * **Semantic TTL**: ベクター空間の特定クラスタにデータ追加が集中した場合（Drift検知）、そのクラスタ近傍のキャッシュTTLを自動短縮
 
 強制失効
@@ -531,6 +590,10 @@ sequenceDiagram
     * `vector_db_ai_inference_latency_seconds_bucket`
     * `vector_db_ai_decision_total{decision="admit|reject"}`
     * `vector_db_ai_fallback_total`
+* **LLM**
+    * `vector_db_llm_job_latency_seconds_bucket{type="normalize|prefetch|evict"}`
+    * `vector_db_llm_job_total{type="normalize|prefetch|evict", status="ok|err|skipped"}`
+    * `vector_db_llm_budget_dropped_total`
 
 ### 10.3 トレーシング
 
@@ -672,6 +735,7 @@ sequenceDiagram
   * partial caching（candidate/route）
   * AI Policy（オフライン学習 + A/Bテスト切替）
   * Query Prediction & Prefetch
+  * AI-Driven Semantic Optimization（LLM: 正規化/プリフェッチ/追い出し助言）
   * テナント別モデル
   * Hybrid Search（Dense + Sparse融合）
   * 高度な監査/SSO/DR
@@ -732,6 +796,7 @@ sequenceDiagram
     * **Next-Query Prediction Table** (Garnet K/V) を参照
     * ユーザーの直前クエリIDをキーに、高確率な次クエリ候補をO(1)で取得
     * アイドル時間に候補を検索しキャッシュへFill
+* LLM（Gemini）併用時は Warm Pathで非同期推論し、予測テーブルを補完（高価値クエリのみ適用）
 
 ---
 
@@ -743,6 +808,36 @@ sequenceDiagram
 * Dense Vector + Sparse Vector（BM25/SPLADE）のスコア融合
 * 融合係数α（0=キーワードのみ、1=ベクターのみ）
 * α自動調整（クエリ種別をAIが判定）
+
+---
+
+### 17.5 AI-Driven Semantic Optimization（Gemini / Warm Path）
+
+**前提**: Hot Pathの目標遅延は < 0.1ms のため、Gemini APIを同期パスに入れない。GeminiはWarm Path/バックグラウンド専用。
+
+**適用領域**:
+
+A. Semantic Cache Key Normalization（非同期正規化）
+* 同義語・表記揺れを吸収し、CanonicalKeyを生成
+* `CanonicalKeyMap` を更新してキャッシュヒット率を上げる
+
+B. Intelligent Prefetching for RAG（文脈予測）
+* セッション文脈から次の質問を推論し、事前にFAISS検索→キャッシュ
+* 体感レイテンシを0msに近づける
+
+C. Cache Eviction Policy Advisor（賢い追い出し）
+* バッチで「時事性/普遍性」を評価し、TTL/優先度を調整
+* LRUだけでは守れない価値の高いクエリを残す
+
+**実装案**:
+1. Frontがクエリログ/統計をQueueへ送信
+2. Gemini Workerが推論し、CanonicalKeyMap/Prefetch Queue/TTL Overrideを更新
+3. Hot Pathはテーブル参照のみで即応（同期パスは汚さない）
+
+**FinOpsガードレール**:
+* Head Query（頻出）または高コスト・高ミスクエリのみ適用
+* `llm_min_query_count` / `llm_min_proxy_cost` でフィルタ、QPS/費用上限でレート制御
+* 失敗時は無視/リトライでHot Pathに影響させない
 
 ---
 
