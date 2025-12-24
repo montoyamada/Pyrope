@@ -113,6 +113,11 @@ Tasks are designed to be PR-sized units (1-3 days work) and allow parallel execu
 | **P6-5** | [Core] | **Prefetch Execution**<br>Read "Next Query" table on search completion. Queue background prefetch for predicted queries during idle time. | P6-4 | [ ] |
 | **P6-6** | [Core] | **Cost-Aware Query Routing**<br>Predict query cost (FAISS time, result size, tenant budget remaining). Auto-adjust nprobe/efSearch/topK when cost exceeds budget. Include adjustment in response (transparency). | P4-2, P5-2 | [ ] |
 | **P6-7** | [Core] | **Semantic TTL**<br>Detect drift (cluster heat from concentrated data additions). Auto-shorten TTL for affected cluster's QueryKeys. | P6-2, P4-4 | [ ] |
+| **P6-8** | [ML] | **LLM Worker (Gemini) Skeleton**<br>Consume async queue. Implement prompt templates for normalization/prefetch/eviction. Parse structured output. Apply head-query/cost filters. | P4-5 | [ ] |
+| **P6-9** | [Core] | **CanonicalKey Alias Map**<br>Add `CanonicalKeyMap` in Garnet KV. Resolve alias before cache lookup. Apply TTL and confidence thresholds. | P2-1, P2-2, P6-8 | [ ] |
+| **P6-10** | [Core] | **LLM Prefetch Dispatcher**<br>Convert LLM predictions into prefetch jobs. Reuse P6-5 background search fill. | P6-5, P6-8 | [ ] |
+| **P6-11** | [Core] | **LLM Eviction/TTL Overrides**<br>Apply LLM advisory TTL/priority in eviction scoring with guardrails. | P2-4, P6-8 | [ ] |
+| **P6-12** | [Ops] | **LLM Budgeting & Metrics**<br>Rate-limit Gemini calls, track cost, expose metrics/alerts. | P3-4, P6-8 | [ ] |
 
 ---
 
@@ -190,6 +195,7 @@ Tasks are designed to be PR-sized units (1-3 days work) and allow parallel execu
 ### Could (Differentiation)
 - P4-*: AI Controller Integration
 - P6-4 ~ P6-5: Query Prediction & Prefetch
+- P6-8 ~ P6-12: LLM-based Semantic Optimization
 - P8-*: AI Model Training Pipeline
 - P10-1 ~ P10-2: Hybrid Search
 - P9-6: Per-Tenant Models
