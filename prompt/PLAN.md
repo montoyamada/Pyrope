@@ -24,7 +24,7 @@ Tasks are designed to be PR-sized units (1-3 days work) and allow parallel execu
 |----|-------|------|--------------|--------|
 | **P0-1** | [Core] | **Project Skeleton & Garnet Hosting**<br>Set up C# solution, integrate `Microsoft.Garnet`, create `GarnetServer` console app. Ensure basic Redis commands work. | - | [x] |
 | **P0-2** | [ML] | **AI Sidecar Skeleton (GRPC)**<br>Create Python project with `grpcio`. Define `.proto` for `PolicyService`. Implement dummy "Echo" policy. | - | [x] |
-| **P0-3** | [Ops] | **Docker Compose Environment**<br>Containerize P0-1 and P0-2. Configure network. Verify GRPC connectivity from Garnet to Python. | P0-1, P0-2 | [ ] |
+| **P0-3** | [Ops] | **Docker Compose Environment**<br>Containerize P0-1 and P0-2. Configure network. Verify GRPC connectivity from Garnet to Python. | P0-1, P0-2 | [x] |
 | **P0-4** | [Core] | **Custom Command Registry**<br>Implement `VectorCommandSet` class inheriting from `CustomRawStringFunctions`. Stub `VEC.ADD`, `VEC.SEARCH` placeholders. Register commands in `Program.cs`. **Verification**: `CommandRegistryTests` pass (commands accepted). | P0-1 | [x] |
 | **P0-5** | [Core] | **Tenant & Index Data Model**<br>Implement `tenant_id`, `index_name` namespace scheme. Define `IndexConfig` structure (dim, metric, index_factory, train config). Store in Garnet KV via `IndexMetadataManager`. **Verification**: `IndexMetadataTests` pass (serialize/store/retrieve). | P0-1 | [x] |
 
@@ -199,6 +199,18 @@ Tasks are designed to be PR-sized units (1-3 days work) and allow parallel execu
 - P8-*: AI Model Training Pipeline
 - P10-1 ~ P10-2: Hybrid Search
 - P9-6: Per-Tenant Models
+
+---
+
+## Current
+
+- Completed P0-3 Docker Compose scaffolding with Garnet + AI sidecar containers.
+- Consolidated IndexConfig model + validation and moved related tests into the main test project.
+- Added KeyUtils and tests for tenant/index metadata keys.
+
+## Tests
+
+- `dotnet test tests/Pyrope.GarnetServer.Tests/Pyrope.GarnetServer.Tests.csproj` (warnings in `tests/Pyrope.GarnetServer.Tests/IndexMetadataTests.cs`).
 
 ---
 
