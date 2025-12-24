@@ -1,0 +1,24 @@
+services:
+  garnet:
+    build:
+      context: .
+      dockerfile: src/Pyrope.GarnetServer/Dockerfile
+    ports:
+      - "3278:3278"
+    depends_on:
+      - sidecar
+    networks:
+      - pyrope-net
+
+  sidecar:
+    build:
+      context: .
+      dockerfile: src/Pyrope.AISidecar/Dockerfile
+    ports:
+      - "50051:50051"
+    networks:
+      - pyrope-net
+
+networks:
+  pyrope-net:
+    driver: bridge
