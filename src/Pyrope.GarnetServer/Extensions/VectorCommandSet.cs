@@ -43,7 +43,7 @@ namespace Pyrope.GarnetServer.Extensions
         {
             if (_commandType != VectorCommandType.Search)
             {
-                output.WriteError("ERR Unsupported read command.");
+                WriteErrorCode(ref output, "ERR Unsupported read command.");
                 return true;
             }
 
@@ -55,7 +55,13 @@ namespace Pyrope.GarnetServer.Extensions
 
                 if (!IndexRegistry.TryGetIndex(request.TenantId, request.IndexName, out var index))
                 {
-                    output.WriteEmptyArray();
+                    WriteErrorCode(ref output, VectorErrorCodes.NotFound, "Index not found.");
+                    return true;
+                }
+
+                if (index.Dimension != request.Vector.Length)
+                {
+                    WriteErrorCode(ref output, VectorErrorCodes.DimMismatch, "Vector dimension mismatch.");
                     return true;
                 }
 
@@ -104,7 +110,10 @@ namespace Pyrope.GarnetServer.Extensions
             }
             catch (Exception ex)
             {
-                output.WriteError($"ERR {ex.Message}");
+                if (!TryWriteKnownError(ex, ref output))
+                {
+                    WriteErrorCode(ref output, $"ERR {ex.Message}");
+                }
                 return true;
             }
         }
@@ -113,7 +122,7 @@ namespace Pyrope.GarnetServer.Extensions
         {
             if (_commandType == VectorCommandType.Search)
             {
-                output.WriteError("ERR VEC.SEARCH is read-only.");
+                WriteErrorCode(ref output, "ERR VEC.SEARCH is read-only.");
                 return true;
             }
 
@@ -145,7 +154,7 @@ namespace Pyrope.GarnetServer.Extensions
                 {
                     if (!Store.TryAdd(record))
                     {
-                        output.WriteError("ERR Vector already exists.");
+                        WriteErrorCode(ref output, "ERR Vector already exists.");
                         return true;
                     }
 
@@ -158,17 +167,20 @@ namespace Pyrope.GarnetServer.Extensions
                 }
                 else
                 {
-                    output.WriteError("ERR Unsupported write command.");
+                    WriteErrorCode(ref output, "ERR Unsupported write command.");
                     return true;
                 }
 
                 IndexRegistry.IncrementEpoch(request.TenantId, request.IndexName);
-                output.WriteSimpleString("OK");
+                output.WriteSimpleString(VectorErrorCodes.Ok);
                 return true;
             }
             catch (Exception ex)
             {
-                output.WriteError($"ERR {ex.Message}");
+                if (!TryWriteKnownError(ex, ref output))
+                {
+                    WriteErrorCode(ref output, $"ERR {ex.Message}");
+                }
                 return true;
             }
         }
@@ -179,32 +191,36 @@ namespace Pyrope.GarnetServer.Extensions
             var args = ReadArgs(ref input);
             if (args.Count < 2)
             {
-                output.WriteError("ERR Expected 2 arguments: index id.");
+                WriteErrorCode(ref output, "ERR Expected 2 arguments: index id.");
                 return true;
             }
 
             if (args.Count > 2)
             {
-                output.WriteError("ERR Too many arguments for VEC.DEL.");
+                WriteErrorCode(ref output, "ERR Too many arguments for VEC.DEL.");
                 return true;
             }
 
             var indexName = Decode(args[0]);
             var id = Decode(args[1]);
 
-            var deleted = Store.TryMarkDeleted(tenantId, indexName, id);
-
             if (IndexRegistry.TryGetIndex(tenantId, indexName, out var index))
             {
+                var deleted = Store.TryMarkDeleted(tenantId, indexName, id);
                 index.Delete(id);
-            }
 
-            if (deleted)
+                if (deleted)
+                {
+                    IndexRegistry.IncrementEpoch(tenantId, indexName);
+                }
+            }
+            else
             {
-                IndexRegistry.IncrementEpoch(tenantId, indexName);
+                WriteErrorCode(ref output, VectorErrorCodes.NotFound, "Index not found.");
+                return true;
             }
 
-            output.WriteSimpleString("OK");
+            output.WriteSimpleString(VectorErrorCodes.Ok);
             return true;
         }
 
@@ -246,6 +262,29 @@ namespace Pyrope.GarnetServer.Extensions
             }
 
             return true;
+        }
+
+        private static void WriteErrorCode(ref RespMemoryWriter output, string code, string? detail = null)
+        {
+            if (string.IsNullOrWhiteSpace(detail))
+            {
+                output.WriteError(code);
+                return;
+            }
+
+            output.WriteError($"{code} {detail}");
+        }
+
+        private static bool TryWriteKnownError(Exception ex, ref RespMemoryWriter output)
+        {
+            if (ex is ArgumentException argEx &&
+                argEx.Message.Contains("dimension", StringComparison.OrdinalIgnoreCase))
+            {
+                WriteErrorCode(ref output, VectorErrorCodes.DimMismatch, "Vector dimension mismatch.");
+                return true;
+            }
+
+            return false;
         }
 
         private sealed record SearchHit(string Id, float Score, string? MetaJson);
