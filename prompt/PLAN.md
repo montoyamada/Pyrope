@@ -40,7 +40,7 @@ Tasks are designed to be PR-sized units (1-3 days work) and allow parallel execu
 | **P1-2-1** | [Ops] | **CI/CD Skeleton**<br>Set up CI to run `dotnet test` on PRs. Add lint/format later as needed. | P1-2 | [x] |
 | **P1-3** | [Core] | **Implement `VEC.DEL`**<br>Logical deletion with `deleted: bool` flag. Support epoch/version management for cache invalidation. | P1-2 | [x] |
 | **P1-4** | [Core] | **Implement `VEC.SEARCH` (Brute Force)**<br>Basic Flat Search implementation. Support `TOPK`, `FILTER` (tag-based). Return RESP array with IDs, Scores, and optional Meta. | P1-2 | [x] |
-| **P1-5** | [Core] | **Error Code System**<br>Implement standardized error codes: `VEC_OK`, `VEC_ERR_DIM`, `VEC_ERR_NOT_FOUND`, `VEC_ERR_QUOTA`, `VEC_ERR_BUSY`. | P1-4 | [ ] |
+| **P1-5** | [Core] | **Error Code System**<br>Implement standardized error codes: `VEC_OK`, `VEC_ERR_DIM`, `VEC_ERR_NOT_FOUND`, `VEC_ERR_QUOTA`, `VEC_ERR_BUSY`. | P1-4 | [x] |
 | **P1-6** | [Ops] | **Vector Benchmarking Data & Tool**<br>Script to load SIFT1M/Glove datasets. Benchmark baseline latency/QPS of P1-4. | P1-4 | [ ] |
 
 ---
@@ -212,6 +212,7 @@ Tasks are designed to be PR-sized units (1-3 days work) and allow parallel execu
 - Added GitHub Actions CI to run `dotnet test` on PRs and main pushes.
 - Implemented `VEC.SEARCH` with brute-force topK search, tag filtering, and optional meta return.
 - Added Garnet command tests for `VEC.SEARCH` result ordering, tag filters, and meta output.
+- Standardized command responses with `VEC_OK` and error codes for dimension mismatch and missing indexes.
 
 ## Tests
 
