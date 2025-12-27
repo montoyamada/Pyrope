@@ -36,6 +36,32 @@ namespace Pyrope.GarnetServer.Extensions
         public IReadOnlyDictionary<string, double> NumericFields { get; }
     }
 
+    public sealed class VectorSearchRequest
+    {
+        public VectorSearchRequest(
+            string tenantId,
+            string indexName,
+            int topK,
+            float[] vector,
+            IReadOnlyList<string> filterTags,
+            bool includeMeta)
+        {
+            TenantId = tenantId;
+            IndexName = indexName;
+            TopK = topK;
+            Vector = vector;
+            FilterTags = filterTags;
+            IncludeMeta = includeMeta;
+        }
+
+        public string TenantId { get; }
+        public string IndexName { get; }
+        public int TopK { get; }
+        public float[] Vector { get; }
+        public IReadOnlyList<string> FilterTags { get; }
+        public bool IncludeMeta { get; }
+    }
+
     public static class VectorCommandParser
     {
         public static VectorCommandRequest Parse(IReadOnlyList<string> args)
@@ -172,6 +198,66 @@ namespace Pyrope.GarnetServer.Extensions
             }
 
             return new VectorCommandRequest(tenantId, indexName, id, vector, metaJson, tags, numericFields);
+        }
+
+        public static VectorSearchRequest ParseSearch(string tenantId, IReadOnlyList<ArgSlice> args)
+        {
+            if (args == null) throw new ArgumentNullException(nameof(args));
+            if (string.IsNullOrWhiteSpace(tenantId)) throw new ArgumentException("Tenant id cannot be empty.", nameof(tenantId));
+            if (args.Count < 5)
+            {
+                throw new ArgumentException("Expected at least 5 arguments: index TOPK <k> VECTOR <payload>.");
+            }
+
+            var indexName = Decode(args[0]);
+            var token = Decode(args[1]);
+            if (!token.Equals("TOPK", StringComparison.OrdinalIgnoreCase))
+            {
+                throw new ArgumentException("Expected TOPK token after index name.");
+            }
+
+            if (!int.TryParse(Decode(args[2]), out var topK) || topK <= 0)
+            {
+                throw new ArgumentException("TOPK must be a positive integer.");
+            }
+
+            token = Decode(args[3]);
+            if (!token.Equals("VECTOR", StringComparison.OrdinalIgnoreCase))
+            {
+                throw new ArgumentException("Expected VECTOR token before payload.");
+            }
+
+            var vector = VectorParsing.ParseVector(args[4].ReadOnlySpan);
+            var filterTags = Array.Empty<string>();
+            var includeMeta = false;
+
+            var i = 5;
+            while (i < args.Count)
+            {
+                token = Decode(args[i]);
+                if (token.Equals("FILTER", StringComparison.OrdinalIgnoreCase))
+                {
+                    i++;
+                    if (i >= args.Count)
+                    {
+                        throw new ArgumentException("FILTER requires tag list.");
+                    }
+                    filterTags = ParseTags(Decode(args[i]));
+                    i++;
+                    continue;
+                }
+
+                if (token.Equals("WITH_META", StringComparison.OrdinalIgnoreCase))
+                {
+                    includeMeta = true;
+                    i++;
+                    continue;
+                }
+
+                throw new ArgumentException($"Unknown token '{token}'.");
+            }
+
+            return new VectorSearchRequest(tenantId, indexName, topK, vector, filterTags, includeMeta);
         }
 
         private static string ValidateJson(string json)

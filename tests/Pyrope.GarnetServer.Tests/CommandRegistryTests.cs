@@ -56,17 +56,47 @@ namespace Pyrope.GarnetServer.Tests
         }
 
         [Fact]
-        public void VecSearch_ReturnsStubResponse()
+        public void VecSearch_ReturnsTopKResults()
         {
             using var redis = ConnectionMultiplexer.Connect($"127.0.0.1:{_port}");
             var db = redis.GetDatabase();
 
-            // VEC.SEARCH tenant index topK vector
-            var result = db.Execute("VEC.SEARCH", "tenant1", "idx1", "10", "vector_blob");
-            
-            // For stub, we might return empty array or string, but let's assume it returns something indicative
-            // Garnet custom commands usually return custom types, but stub might be simple string for now
-            Assert.NotNull(result); 
+            var addOne = db.Execute("VEC.ADD", "tenant_search1", "idx_search1", "doc1", "VECTOR", "[1,0]", "META", "{\"category\":\"news\"}");
+            Assert.Equal("OK", addOne.ToString());
+            var addTwo = db.Execute("VEC.ADD", "tenant_search1", "idx_search1", "doc2", "VECTOR", "[0,1]", "TAGS", "sports");
+            Assert.Equal("OK", addTwo.ToString());
+
+            var rawResult = db.Execute("VEC.SEARCH", "tenant_search1", "idx_search1", "TOPK", "1", "VECTOR", "[1,0]");
+            var result = (RedisResult[]?)rawResult;
+            Assert.NotNull(result);
+            Assert.Single(result!);
+
+            var hit = (RedisResult[]?)result![0];
+            Assert.NotNull(hit);
+            Assert.Equal("doc1", hit[0].ToString());
+        }
+
+        [Fact]
+        public void VecSearch_AppliesTagFilterAndReturnsMeta()
+        {
+            using var redis = ConnectionMultiplexer.Connect($"127.0.0.1:{_port}");
+            var db = redis.GetDatabase();
+
+            var addOne = db.Execute("VEC.ADD", "tenant3", "idx3", "doc1", "VECTOR", "[1,0]", "TAGS", "[\"news\",\"sports\"]", "META", "{\"category\":\"news\"}");
+            Assert.Equal("OK", addOne.ToString());
+            var addTwo = db.Execute("VEC.ADD", "tenant3", "idx3", "doc2", "VECTOR", "[0,1]", "TAGS", "sports");
+            Assert.Equal("OK", addTwo.ToString());
+
+            var rawResult = db.Execute("VEC.SEARCH", "tenant3", "idx3", "TOPK", "5", "VECTOR", "[1,0]", "FILTER", "news", "WITH_META");
+            var result = (RedisResult[]?)rawResult;
+            Assert.NotNull(result);
+            Assert.Single(result!);
+
+            var hit = (RedisResult[]?)result![0];
+            Assert.NotNull(hit);
+            Assert.Equal(3, hit!.Length);
+            Assert.Equal("doc1", hit[0].ToString());
+            Assert.Equal("{\"category\":\"news\"}", hit[2].ToString());
         }
 
         [Fact]

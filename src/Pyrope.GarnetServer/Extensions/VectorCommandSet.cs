@@ -41,8 +41,72 @@ namespace Pyrope.GarnetServer.Extensions
 
         public override bool Reader(ReadOnlySpan<byte> key, ref RawStringInput input, ReadOnlySpan<byte> value, ref RespMemoryWriter output, ref ReadInfo readInfo)
         {
-            output.WriteEmptyArray();
-            return true;
+            if (_commandType != VectorCommandType.Search)
+            {
+                output.WriteError("ERR Unsupported read command.");
+                return true;
+            }
+
+            try
+            {
+                var tenantId = System.Text.Encoding.UTF8.GetString(key);
+                var args = ReadArgs(ref input);
+                var request = VectorCommandParser.ParseSearch(tenantId, args);
+
+                if (!IndexRegistry.TryGetIndex(request.TenantId, request.IndexName, out var index))
+                {
+                    output.WriteEmptyArray();
+                    return true;
+                }
+
+                var rawResults = index.Search(request.Vector, request.TopK);
+                var results = new List<SearchHit>(rawResults.Count);
+                foreach (var hit in rawResults)
+                {
+                    if (!Store.TryGet(request.TenantId, request.IndexName, hit.Id, out var record))
+                    {
+                        continue;
+                    }
+
+                    if (record.Deleted)
+                    {
+                        continue;
+                    }
+
+                    if (request.FilterTags.Count > 0 && !HasAllTags(record.Tags, request.FilterTags))
+                    {
+                        continue;
+                    }
+
+                    results.Add(new SearchHit(hit.Id, hit.Score, record.MetaJson));
+                }
+
+                output.WriteArrayLength(results.Count);
+                foreach (var hit in results)
+                {
+                    output.WriteArrayLength(request.IncludeMeta ? 3 : 2);
+                    output.WriteUtf8BulkString(hit.Id);
+                    output.WriteDoubleNumeric(hit.Score);
+                    if (request.IncludeMeta)
+                    {
+                        if (hit.MetaJson is null)
+                        {
+                            output.WriteNull();
+                        }
+                        else
+                        {
+                            output.WriteUtf8BulkString(hit.MetaJson);
+                        }
+                    }
+                }
+
+                return true;
+            }
+            catch (Exception ex)
+            {
+                output.WriteError($"ERR {ex.Message}");
+                return true;
+            }
         }
 
         private bool HandleWrite(ReadOnlySpan<byte> key, ref RawStringInput input, ref RespMemoryWriter output)
@@ -159,6 +223,32 @@ namespace Pyrope.GarnetServer.Extensions
         {
             return System.Text.Encoding.UTF8.GetString(arg.ReadOnlySpan);
         }
+
+        private static bool HasAllTags(IReadOnlyList<string> recordTags, IReadOnlyList<string> filterTags)
+        {
+            if (filterTags.Count == 0)
+            {
+                return true;
+            }
+
+            if (recordTags.Count == 0)
+            {
+                return false;
+            }
+
+            var set = new HashSet<string>(recordTags, StringComparer.Ordinal);
+            foreach (var tag in filterTags)
+            {
+                if (!set.Contains(tag))
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        private sealed record SearchHit(string Id, float Score, string? MetaJson);
     }
 
     public enum VectorCommandType
