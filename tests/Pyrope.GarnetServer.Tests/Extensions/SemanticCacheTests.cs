@@ -53,8 +53,8 @@ namespace Pyrope.GarnetServer.Tests.Extensions
             _db.Execute("VEC.ADD", tenant, index, id, "VECTOR", JsonSerializer.Serialize(vector));
 
             // 2. Search Original (L0 Miss -> Populates L0 & L1)
-            // Query: [1, 0.01, 0, 0] -> Very close to [1,0,0,0]
-            var q1 = new float[4] { 1, 0.01f, 0, 0 }; 
+            // Query: [1, 0, 0, 0] -> Exact match to data
+            var q1 = new float[4] { 1, 0, 0, 0 }; 
             // Syntax: VEC.SEARCH tenant index TOPK 5 VECTOR [...]
             _db.Execute("VEC.SEARCH", tenant, index, "TOPK", "5", "VECTOR", JsonSerializer.Serialize(q1));
 
@@ -66,8 +66,8 @@ namespace Pyrope.GarnetServer.Tests.Extensions
             Assert.Contains("cache_miss_total 1", stats1);
 
             // 3. Search Similar (SimHash match expected)
-            // Query: [1, 0.02, 0, 0] -> Also very close
-            var q2 = new float[4] { 1, 0.02f, 0, 0 }; 
+            // Query: [2, 0, 0, 0] -> Same angle as [1, 0, 0, 0] (SimHash identical), but L0 Miss.
+            var q2 = new float[4] { 2, 0, 0, 0 }; 
             _db.Execute("VEC.SEARCH", tenant, index, "TOPK", "5", "VECTOR", JsonSerializer.Serialize(q2));
 
             // Check Stats: 1 Hit (L1)
