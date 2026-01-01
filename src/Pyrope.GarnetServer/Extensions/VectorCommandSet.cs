@@ -108,7 +108,6 @@ namespace Pyrope.GarnetServer.Extensions
                          else
                          {
                              // 2. Try L1 (Semantic/Fuzzy)
-                             bool l1Hit = false;
                              if (_lshService != null)
                              {
                                  var simHash = _lshService.GenerateSimHash(request.Vector);
@@ -130,10 +129,8 @@ namespace Pyrope.GarnetServer.Extensions
                                  // Close L1 check
                              }
 
-                             if (!l1Hit)
-                             {
-                                 _metrics?.RecordCacheMiss();
-                             }
+                             // If we reached here, both L0 and L1 (if enabled) missed
+                             _metrics?.RecordCacheMiss();
                          }
                     }
                 }

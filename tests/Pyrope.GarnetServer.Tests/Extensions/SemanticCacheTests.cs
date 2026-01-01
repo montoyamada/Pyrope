@@ -62,8 +62,9 @@ namespace Pyrope.GarnetServer.Tests.Extensions
             _db.StringSet("sys:dummy", "init");
 
             // Check Stats: 1 Miss
-            var stats1 = (string)_db.Execute("VEC.STATS", "sys:dummy");
-            Assert.Contains("cache_miss_total 1", stats1);
+            var stats1 = (string?)_db.Execute("VEC.STATS", "sys:dummy");
+            Assert.NotNull(stats1);
+            Assert.Contains("cache_miss_total 1", stats1!);
 
             // 3. Search Similar (SimHash match expected)
             // Query: [2, 0, 0, 0] -> Same angle as [1, 0, 0, 0] (SimHash identical), but L0 Miss.
@@ -71,8 +72,9 @@ namespace Pyrope.GarnetServer.Tests.Extensions
             _db.Execute("VEC.SEARCH", tenant, index, "TOPK", "5", "VECTOR", JsonSerializer.Serialize(q2));
 
             // Check Stats: 1 Hit (L1)
-            var stats2 = (string)_db.Execute("VEC.STATS", "sys:dummy");
-            Assert.Contains("cache_hit_total 1", stats2);
+            var stats2 = (string?)_db.Execute("VEC.STATS", "sys:dummy");
+            Assert.NotNull(stats2);
+            Assert.Contains("cache_hit_total 1", stats2!);
         }
     }
 }

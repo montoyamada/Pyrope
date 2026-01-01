@@ -18,7 +18,7 @@ namespace Pyrope.GarnetServer.Services
             _hashBits = hashBits;
         }
 
-        private float[][] GetOrGeneratProjections(int dimensions)
+        private float[][] GetOrGenerateProjections(int dimensions)
         {
             lock (_lock)
             {
@@ -49,7 +49,7 @@ namespace Pyrope.GarnetServer.Services
         public long GenerateSimHash(float[] vector)
         {
             var dim = vector.Length;
-            var projections = GetOrGeneratProjections(dim);
+            var projections = GetOrGenerateProjections(dim);
 
             long hash = 0;
             for (int i = 0; i < _hashBits; i++)
