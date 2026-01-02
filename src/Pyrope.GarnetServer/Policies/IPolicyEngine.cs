@@ -15,5 +15,6 @@ namespace Pyrope.GarnetServer.Policies
     public interface IPolicyEngine
     {
         PolicyDecision Evaluate(QueryKey key);
+        void UpdatePolicy(Pyrope.Policy.WarmPathPolicy policy);
     }
 }

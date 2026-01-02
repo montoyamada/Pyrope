@@ -21,6 +21,34 @@ namespace Pyrope.GarnetServer.Tests.Policies
             Assert.Equal(ttl, decision.Ttl);
         }
 
+        [Fact]
+        public void UpdatePolicy_ShouldUpdateTtl_ThreadSafe()
+        {
+            // Arrange
+            var initialTtl = TimeSpan.FromSeconds(60);
+            var engine = new StaticPolicyEngine(initialTtl);
+            var key = CreateKey();
+
+            // Act - Verify initial state
+            var initialDecision = engine.Evaluate(key);
+            Assert.Equal(initialTtl, initialDecision.Ttl);
+
+            // Act - Update Policy
+            var newTtlSeconds = 120;
+            var newPolicy = new Pyrope.Policy.WarmPathPolicy
+            {
+                TtlSeconds = newTtlSeconds,
+                AdmissionThreshold = 0.5,
+                EvictionPriority = 10
+            };
+
+            engine.UpdatePolicy(newPolicy);
+
+            // Assert
+            var updatedDecision = engine.Evaluate(key);
+            Assert.Equal(TimeSpan.FromSeconds(newTtlSeconds), updatedDecision.Ttl);
+        }
+
         private QueryKey CreateKey()
         {
             return new QueryKey(
