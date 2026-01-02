@@ -79,7 +79,9 @@ namespace Pyrope.GarnetServer.Extensions
             }
 
             var tenantId = args[0];
+            TenantNamespace.ValidateTenantId(tenantId);
             var indexName = args[1];
+            TenantNamespace.ValidateIndexName(indexName);
             var id = args[2];
             var vectorToken = args[3];
             if (!vectorToken.Equals("VECTOR", StringComparison.OrdinalIgnoreCase))
@@ -141,13 +143,14 @@ namespace Pyrope.GarnetServer.Extensions
         public static VectorCommandRequest Parse(string tenantId, IReadOnlyList<ArgSlice> args)
         {
             if (args == null) throw new ArgumentNullException(nameof(args));
-            if (string.IsNullOrWhiteSpace(tenantId)) throw new ArgumentException("Tenant id cannot be empty.", nameof(tenantId));
+            TenantNamespace.ValidateTenantId(tenantId);
             if (args.Count < 4)
             {
                 throw new ArgumentException("Expected at least 4 arguments: index id VECTOR <payload>.");
             }
 
             var indexName = Decode(args[0]);
+            TenantNamespace.ValidateIndexName(indexName);
             var id = Decode(args[1]);
             var vectorToken = Decode(args[2]);
             if (!vectorToken.Equals("VECTOR", StringComparison.OrdinalIgnoreCase))
@@ -209,13 +212,14 @@ namespace Pyrope.GarnetServer.Extensions
         public static VectorSearchRequest ParseSearch(string tenantId, IReadOnlyList<ArgSlice> args)
         {
             if (args == null) throw new ArgumentNullException(nameof(args));
-            if (string.IsNullOrWhiteSpace(tenantId)) throw new ArgumentException("Tenant id cannot be empty.", nameof(tenantId));
+            TenantNamespace.ValidateTenantId(tenantId);
             if (args.Count < 5)
             {
                 throw new ArgumentException("Expected at least 5 arguments: index TOPK <k> VECTOR <payload>.");
             }
 
             var indexName = Decode(args[0]);
+            TenantNamespace.ValidateIndexName(indexName);
             var token = Decode(args[1]);
             if (!token.Equals("TOPK", StringComparison.OrdinalIgnoreCase))
             {

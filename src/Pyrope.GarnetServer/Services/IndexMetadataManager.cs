@@ -1,6 +1,7 @@
 using System;
 using System.Text.Json;
 using Pyrope.GarnetServer.Model;
+using Pyrope.GarnetServer.Utils;
 
 namespace Pyrope.GarnetServer.Services
 {
@@ -10,8 +11,8 @@ namespace Pyrope.GarnetServer.Services
 
         public string GetMetadataKey(string tenantId, string indexName)
         {
-            if (string.IsNullOrWhiteSpace(tenantId)) throw new ArgumentException("Tenant ID cannot be empty", nameof(tenantId));
-            if (string.IsNullOrWhiteSpace(indexName)) throw new ArgumentException("Index Name cannot be empty", nameof(indexName));
+            TenantNamespace.ValidateTenantId(tenantId);
+            TenantNamespace.ValidateIndexName(indexName);
 
             return $"{Prefix}:{tenantId}:{indexName}";
         }

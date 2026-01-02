@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Pyrope.GarnetServer.Model;
 using Pyrope.GarnetServer.Services;
+using Pyrope.GarnetServer.Utils;
 
 namespace Pyrope.GarnetServer.Controllers
 {
@@ -23,6 +24,11 @@ namespace Pyrope.GarnetServer.Controllers
                 return BadRequest("Invalid request.");
             }
 
+            if (!TenantNamespace.TryValidateTenantId(request.TenantId, out var error))
+            {
+                return BadRequest(error);
+            }
+
             var quotas = request.Quotas ?? new TenantQuota();
             if (_registry.TryCreate(request.TenantId, quotas, out var config))
             {
@@ -35,6 +41,11 @@ namespace Pyrope.GarnetServer.Controllers
         [HttpGet("{tenantId}/quotas")]
         public IActionResult GetQuotas(string tenantId)
         {
+            if (!TenantNamespace.TryValidateTenantId(tenantId, out var error))
+            {
+                return BadRequest(error);
+            }
+
             if (_registry.TryGet(tenantId, out var config))
             {
                 return Ok(config!.Quotas);
@@ -49,6 +60,11 @@ namespace Pyrope.GarnetServer.Controllers
             if (request == null)
             {
                 return BadRequest("Invalid request.");
+            }
+
+            if (!TenantNamespace.TryValidateTenantId(tenantId, out var error))
+            {
+                return BadRequest(error);
             }
 
             if (_registry.TryUpdateQuotas(tenantId, request, out var config))

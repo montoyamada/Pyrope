@@ -56,6 +56,16 @@ namespace Pyrope.GarnetServer.Controllers
                 return BadRequest("TenantId and IndexName are required.");
             }
 
+            if (!TenantNamespace.TryValidateTenantId(request.TenantId, out var tenantError))
+            {
+                return BadRequest(tenantError);
+            }
+
+            if (!TenantNamespace.TryValidateIndexName(request.IndexName, out var indexError))
+            {
+                return BadRequest(indexError);
+            }
+
             var prefix = KeyUtils.GetCacheKeyPrefix(request.TenantId, request.IndexName);
             var removed = _cacheAdmin.RemoveByPrefix(prefix);
             return Ok(new { Removed = removed });

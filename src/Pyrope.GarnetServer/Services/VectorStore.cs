@@ -2,6 +2,7 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using Pyrope.GarnetServer.Model;
+using Pyrope.GarnetServer.Utils;
 
 namespace Pyrope.GarnetServer.Services
 {
@@ -63,8 +64,8 @@ namespace Pyrope.GarnetServer.Services
 
         private static string GetRecordKey(string tenantId, string indexName, string id)
         {
-            if (string.IsNullOrWhiteSpace(tenantId)) throw new ArgumentException("Tenant id cannot be empty.", nameof(tenantId));
-            if (string.IsNullOrWhiteSpace(indexName)) throw new ArgumentException("Index name cannot be empty.", nameof(indexName));
+            TenantNamespace.ValidateTenantId(tenantId);
+            TenantNamespace.ValidateIndexName(indexName);
             if (string.IsNullOrWhiteSpace(id)) throw new ArgumentException("Id cannot be empty.", nameof(id));
 
             return $"{tenantId}:{indexName}:{id}";

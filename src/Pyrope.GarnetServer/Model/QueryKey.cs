@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using Pyrope.GarnetServer.Utils;
 using Pyrope.GarnetServer.Vector;
 
 namespace Pyrope.GarnetServer.Model
@@ -25,6 +26,8 @@ namespace Pyrope.GarnetServer.Model
             IReadOnlyList<string>? filterTags,
             long? simHash = null)
         {
+            TenantNamespace.ValidateTenantId(tenantId);
+            TenantNamespace.ValidateIndexName(indexName);
             TenantId = tenantId;
             IndexName = indexName;
             Vector = vector;
