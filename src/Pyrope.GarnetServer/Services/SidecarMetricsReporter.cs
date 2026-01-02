@@ -1,6 +1,7 @@
 using System;
 using System.Threading;
 using System.Threading.Tasks;
+using Grpc.Core;
 using Grpc.Net.Client;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
@@ -18,6 +19,7 @@ namespace Pyrope.GarnetServer.Services
         private readonly ILogger<SidecarMetricsReporter> _logger;
         private readonly string? _sidecarEndpoint;
         private TimeSpan _reportInterval;
+        private readonly TimeSpan _warmPathTimeout;
 
         public SidecarMetricsReporter(
             IMetricsCollector metricsCollector,
@@ -38,6 +40,13 @@ namespace Pyrope.GarnetServer.Services
             }
 
             _reportInterval = TimeSpan.FromSeconds(Math.Max(1, seconds));
+
+            if (!int.TryParse(configuration["Sidecar:WarmPathTimeoutMs"], out var timeoutMs))
+            {
+                timeoutMs = 50;
+            }
+
+            _warmPathTimeout = TimeSpan.FromMilliseconds(Math.Max(1, timeoutMs));
         }
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -93,7 +102,10 @@ namespace Pyrope.GarnetServer.Services
 
                 try
                 {
-                    var response = await client.ReportSystemMetricsAsync(request, cancellationToken: stoppingToken);
+                    var response = await client.ReportSystemMetricsAsync(
+                        request,
+                        deadline: DateTime.UtcNow.Add(_warmPathTimeout),
+                        cancellationToken: stoppingToken);
                     if (response.NextReportIntervalMs > 0)
                     {
                         _reportInterval = TimeSpan.FromMilliseconds(response.NextReportIntervalMs);
@@ -103,6 +115,16 @@ namespace Pyrope.GarnetServer.Services
                     {
                         _policyEngine.UpdatePolicy(response.Policy);
                     }
+                }
+                catch (RpcException ex) when (ex.StatusCode == StatusCode.DeadlineExceeded && !stoppingToken.IsCancellationRequested)
+                {
+                    _metricsCollector.RecordAiFallback();
+                    _logger.LogWarning(ex, "Sidecar policy response exceeded {TimeoutMs}ms; using cached policy", _warmPathTimeout.TotalMilliseconds);
+                }
+                catch (TaskCanceledException) when (!stoppingToken.IsCancellationRequested)
+                {
+                    _metricsCollector.RecordAiFallback();
+                    _logger.LogWarning("Sidecar policy response timed out after {TimeoutMs}ms; using cached policy", _warmPathTimeout.TotalMilliseconds);
                 }
                 catch (Exception ex) when (!stoppingToken.IsCancellationRequested)
                 {
