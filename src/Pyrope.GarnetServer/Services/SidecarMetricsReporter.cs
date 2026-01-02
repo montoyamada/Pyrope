@@ -6,6 +6,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Pyrope.Policy;
+using Pyrope.GarnetServer.Policies;
 
 namespace Pyrope.GarnetServer.Services
 {
@@ -13,6 +14,7 @@ namespace Pyrope.GarnetServer.Services
     {
         private readonly IMetricsCollector _metricsCollector;
         private readonly ISystemUsageProvider _systemUsageProvider;
+        private readonly IPolicyEngine _policyEngine;
         private readonly ILogger<SidecarMetricsReporter> _logger;
         private readonly string? _sidecarEndpoint;
         private TimeSpan _reportInterval;
@@ -20,11 +22,13 @@ namespace Pyrope.GarnetServer.Services
         public SidecarMetricsReporter(
             IMetricsCollector metricsCollector,
             ISystemUsageProvider systemUsageProvider,
+            IPolicyEngine policyEngine,
             IConfiguration configuration,
             ILogger<SidecarMetricsReporter> logger)
         {
             _metricsCollector = metricsCollector;
             _systemUsageProvider = systemUsageProvider;
+            _policyEngine = policyEngine;
             _logger = logger;
             _sidecarEndpoint = configuration["Sidecar:Endpoint"] ?? Environment.GetEnvironmentVariable("PYROPE_SIDECAR_ENDPOINT");
 
@@ -93,6 +97,11 @@ namespace Pyrope.GarnetServer.Services
                     if (response.NextReportIntervalMs > 0)
                     {
                         _reportInterval = TimeSpan.FromMilliseconds(response.NextReportIntervalMs);
+                    }
+
+                    if (response.Policy != null)
+                    {
+                        _policyEngine.UpdatePolicy(response.Policy);
                     }
                 }
                 catch (Exception ex) when (!stoppingToken.IsCancellationRequested)
