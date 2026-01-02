@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using Pyrope.GarnetServer.Extensions;
 using Xunit;
@@ -33,6 +34,36 @@ namespace Pyrope.GarnetServer.Tests.Vector
             Assert.Equal("{\"source\":\"news\"}", request.MetaJson);
             Assert.Equal(new[] { "hot", "fresh" }, request.Tags);
             Assert.Equal(1.5, request.NumericFields["score"]);
+        }
+
+        [Fact]
+        public void Parse_RejectsInvalidTenantId()
+        {
+            var args = new List<string>
+            {
+                "tenant:bad",
+                "indexA",
+                "doc1",
+                "VECTOR",
+                "[1.0]"
+            };
+
+            Assert.Throws<ArgumentException>(() => VectorCommandParser.Parse(args));
+        }
+
+        [Fact]
+        public void Parse_RejectsInvalidIndexName()
+        {
+            var args = new List<string>
+            {
+                "tenantA",
+                "index:bad",
+                "doc1",
+                "VECTOR",
+                "[1.0]"
+            };
+
+            Assert.Throws<ArgumentException>(() => VectorCommandParser.Parse(args));
         }
     }
 }

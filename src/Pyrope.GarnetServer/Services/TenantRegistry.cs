@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Concurrent;
 using Pyrope.GarnetServer.Model;
+using Pyrope.GarnetServer.Utils;
 
 namespace Pyrope.GarnetServer.Services
 {
@@ -10,6 +11,7 @@ namespace Pyrope.GarnetServer.Services
 
         public bool TryCreate(string tenantId, TenantQuota quotas, out TenantConfig? config)
         {
+            TenantNamespace.ValidateTenantId(tenantId);
             var now = DateTimeOffset.UtcNow;
             var tenantConfig = new TenantConfig(tenantId, quotas, now);
             if (_tenants.TryAdd(tenantId, tenantConfig))
@@ -24,11 +26,13 @@ namespace Pyrope.GarnetServer.Services
 
         public bool TryGet(string tenantId, out TenantConfig? config)
         {
+            TenantNamespace.ValidateTenantId(tenantId);
             return _tenants.TryGetValue(tenantId, out config);
         }
 
         public bool TryUpdateQuotas(string tenantId, TenantQuota quotas, out TenantConfig? config)
         {
+            TenantNamespace.ValidateTenantId(tenantId);
             if (_tenants.TryGetValue(tenantId, out var existing))
             {
                 existing.UpdateQuotas(quotas, DateTimeOffset.UtcNow);

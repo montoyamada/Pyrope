@@ -205,6 +205,7 @@ sequenceDiagram
 制約
 
 * id最大長、meta最大バイト、タグ数上限
+* tenant_id / index_name は `[A-Za-z0-9_-]+`（英数字と _ - のみ）
 * dimはindex単位で固定
 
 ### 4.2 インデックス定義（IndexConfig）

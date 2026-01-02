@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Pyrope.GarnetServer.Extensions;
 using Pyrope.GarnetServer.Services;
+using Pyrope.GarnetServer.Utils;
 using Pyrope.GarnetServer.Vector;
 
 namespace Pyrope.GarnetServer.Controllers
@@ -22,6 +23,16 @@ namespace Pyrope.GarnetServer.Controllers
             if (request == null || string.IsNullOrWhiteSpace(request.TenantId) || string.IsNullOrWhiteSpace(request.IndexName))
                 return BadRequest("Invalid request.");
 
+            if (!TenantNamespace.TryValidateTenantId(request.TenantId, out var tenantError))
+            {
+                return BadRequest(tenantError);
+            }
+
+            if (!TenantNamespace.TryValidateIndexName(request.IndexName, out var indexError))
+            {
+                return BadRequest(indexError);
+            }
+
             try
             {
                 var metric = Enum.Parse<VectorMetric>(request.Metric, true);
@@ -37,6 +48,16 @@ namespace Pyrope.GarnetServer.Controllers
         [HttpPost("{tenantId}/{indexName}/build")]
         public IActionResult BuildIndex(string tenantId, string indexName)
         {
+            if (!TenantNamespace.TryValidateTenantId(tenantId, out var tenantError))
+            {
+                return BadRequest(tenantError);
+            }
+
+            if (!TenantNamespace.TryValidateIndexName(indexName, out var indexError))
+            {
+                return BadRequest(indexError);
+            }
+
             if (_registry.TryGetIndex(tenantId, indexName, out var index))
             {
                 index.Build();
@@ -51,6 +72,16 @@ namespace Pyrope.GarnetServer.Controllers
             if (request == null || string.IsNullOrWhiteSpace(request.Path))
             {
                 return BadRequest("Path is required.");
+            }
+
+            if (!TenantNamespace.TryValidateTenantId(tenantId, out var tenantError))
+            {
+                return BadRequest(tenantError);
+            }
+
+            if (!TenantNamespace.TryValidateIndexName(indexName, out var indexError))
+            {
+                return BadRequest(indexError);
             }
 
             if (_registry.TryGetIndex(tenantId, indexName, out var index))
@@ -76,6 +107,16 @@ namespace Pyrope.GarnetServer.Controllers
                 return BadRequest("Path is required.");
             }
 
+            if (!TenantNamespace.TryValidateTenantId(tenantId, out var tenantError))
+            {
+                return BadRequest(tenantError);
+            }
+
+            if (!TenantNamespace.TryValidateIndexName(indexName, out var indexError))
+            {
+                return BadRequest(indexError);
+            }
+
             if (_registry.TryGetIndex(tenantId, indexName, out var index))
             {
                 try
@@ -94,6 +135,16 @@ namespace Pyrope.GarnetServer.Controllers
         [HttpGet("{tenantId}/{indexName}/stats")]
         public IActionResult GetStats(string tenantId, string indexName)
         {
+            if (!TenantNamespace.TryValidateTenantId(tenantId, out var tenantError))
+            {
+                return BadRequest(tenantError);
+            }
+
+            if (!TenantNamespace.TryValidateIndexName(indexName, out var indexError))
+            {
+                return BadRequest(indexError);
+            }
+
             if (_registry.TryGetIndex(tenantId, indexName, out var index))
             {
                 return Ok(index.GetStats());

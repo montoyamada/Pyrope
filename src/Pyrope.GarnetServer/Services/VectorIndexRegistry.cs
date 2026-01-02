@@ -2,6 +2,7 @@ using System;
 using System.Collections.Concurrent;
 using System.Threading;
 using Pyrope.GarnetServer.Vector;
+using Pyrope.GarnetServer.Utils;
 
 namespace Pyrope.GarnetServer.Services
 {
@@ -11,8 +12,8 @@ namespace Pyrope.GarnetServer.Services
 
         public IVectorIndex GetOrCreate(string tenantId, string indexName, int dimension, VectorMetric metric)
         {
-            if (string.IsNullOrWhiteSpace(tenantId)) throw new ArgumentException("Tenant id cannot be empty.", nameof(tenantId));
-            if (string.IsNullOrWhiteSpace(indexName)) throw new ArgumentException("Index name cannot be empty.", nameof(indexName));
+            TenantNamespace.ValidateTenantId(tenantId);
+            TenantNamespace.ValidateIndexName(indexName);
 
             var key = GetIndexKey(tenantId, indexName);
             var state = _indices.GetOrAdd(key, _ => new IndexState(dimension, metric));
@@ -32,8 +33,8 @@ namespace Pyrope.GarnetServer.Services
 
         public bool TryGetIndex(string tenantId, string indexName, out IVectorIndex index)
         {
-            if (string.IsNullOrWhiteSpace(tenantId)) throw new ArgumentException("Tenant id cannot be empty.", nameof(tenantId));
-            if (string.IsNullOrWhiteSpace(indexName)) throw new ArgumentException("Index name cannot be empty.", nameof(indexName));
+            TenantNamespace.ValidateTenantId(tenantId);
+            TenantNamespace.ValidateIndexName(indexName);
 
             var key = GetIndexKey(tenantId, indexName);
             if (_indices.TryGetValue(key, out var state))
@@ -48,8 +49,8 @@ namespace Pyrope.GarnetServer.Services
 
         public long IncrementEpoch(string tenantId, string indexName)
         {
-            if (string.IsNullOrWhiteSpace(tenantId)) throw new ArgumentException("Tenant id cannot be empty.", nameof(tenantId));
-            if (string.IsNullOrWhiteSpace(indexName)) throw new ArgumentException("Index name cannot be empty.", nameof(indexName));
+            TenantNamespace.ValidateTenantId(tenantId);
+            TenantNamespace.ValidateIndexName(indexName);
 
             var key = GetIndexKey(tenantId, indexName);
             return _indices.TryGetValue(key, out var state) ? state.IncrementEpoch() : 0;
@@ -57,8 +58,8 @@ namespace Pyrope.GarnetServer.Services
 
         public long GetEpoch(string tenantId, string indexName)
         {
-            if (string.IsNullOrWhiteSpace(tenantId)) throw new ArgumentException("Tenant id cannot be empty.", nameof(tenantId));
-            if (string.IsNullOrWhiteSpace(indexName)) throw new ArgumentException("Index name cannot be empty.", nameof(indexName));
+            TenantNamespace.ValidateTenantId(tenantId);
+            TenantNamespace.ValidateIndexName(indexName);
 
             var key = GetIndexKey(tenantId, indexName);
             return _indices.TryGetValue(key, out var state) ? state.Epoch : 0;
