@@ -15,7 +15,7 @@ class QueryLogger:
             "tenant_id": tenant_id,
             "query_features": query_features,
             "system_metrics": system_metrics,
-            "decision": decision
+            "decision": decision,
         }
         with open(self.log_path, "a") as f:
             f.write(json.dumps(entry) + "\n")
