@@ -4,7 +4,6 @@ import json
 import tempfile
 import shutil
 from unittest.mock import MagicMock
-import policy_service_pb2
 from server import PolicyService
 
 
@@ -18,7 +17,7 @@ class TestPolicyServiceLogging(unittest.TestCase):
         shutil.rmtree(self.test_dir)
 
     def test_report_system_metrics_logs_decision(self):
-        request = MagicMock(spec=policy_service_pb2.SystemMetricsRequest)
+        request = MagicMock()
         request.tenant_id = "tenant-1"
         request.qps = 100.0
         request.miss_rate = 0.2
