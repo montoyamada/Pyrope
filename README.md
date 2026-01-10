@@ -66,8 +66,28 @@ Pyrope includes a simple benchmarking tool to load common datasets and measure b
 
 ### Start server (RESP)
 
+**重要**: ベンチマークでHTTP API経由のテナント自動登録を使用する場合は、`PYROPE_ADMIN_API_KEY`環境変数を設定してサーバーを起動してください。
+
 ```bash
-dotnet run --project src/Pyrope.GarnetServer -- --port 3278 --bind 127.0.0.1
+# Admin API Keyを設定してサーバーを起動
+PYROPE_ADMIN_API_KEY=your_admin_key dotnet run --project src/Pyrope.GarnetServer -- --port 3278 --bind 127.0.0.1
+```
+
+### Run benchmark (Synthetic data - クイックテスト)
+
+合成データを使用した簡単なテスト（データセットのダウンロード不要）:
+
+```bash
+./scripts/bench_vectors.sh \
+  --dataset synthetic \
+  --dim 128 \
+  --base-limit 1000 \
+  --query-limit 100 \
+  --topk 10 \
+  --concurrency 4 \
+  --api-key your_tenant_key \
+  --http http://localhost:5000 \
+  --admin-api-key your_admin_key
 ```
 
 ### Run benchmark (SIFT1M fvecs)
@@ -75,14 +95,46 @@ dotnet run --project src/Pyrope.GarnetServer -- --port 3278 --bind 127.0.0.1
 Prepare a directory containing `sift_base.fvecs` and `sift_query.fvecs`, then run:
 
 ```bash
-./scripts/bench_vectors.sh --dataset sift --sift-dir ./datasets/sift1m --base-limit 100000 --query-limit 1000 --topk 10 --concurrency 16 --warmup 100
+./scripts/bench_vectors.sh \
+  --dataset sift \
+  --sift-dir ./datasets/sift1m \
+  --base-limit 100000 \
+  --query-limit 1000 \
+  --topk 10 \
+  --concurrency 16 \
+  --warmup 100 \
+  --api-key your_tenant_key \
+  --http http://localhost:5000 \
+  --admin-api-key your_admin_key
 ```
 
 ### Run benchmark (GloVe txt)
 
 ```bash
-./scripts/bench_vectors.sh --dataset glove --glove-path ./datasets/glove/glove.6B.100d.txt --dim 100 --base-limit 200000 --query-limit 2000
+./scripts/bench_vectors.sh \
+  --dataset glove \
+  --glove-path ./datasets/glove/glove.6B.100d.txt \
+  --dim 100 \
+  --base-limit 200000 \
+  --query-limit 2000 \
+  --api-key your_tenant_key \
+  --http http://localhost:5000 \
+  --admin-api-key your_admin_key
 ```
+
+### Benchmark Options
+
+| オプション | 説明 |
+| --- | --- |
+| `--api-key` | (必須) テナントAPIキー。VEC.*コマンドの認証に使用 |
+| `--http` | HTTP APIのベースURL (例: `http://localhost:5000`)。指定するとテナントを自動作成 |
+| `--admin-api-key` | `--http`使用時に必須。Admin APIキー |
+| `--dataset` | `synthetic`, `sift`, `glove` のいずれか |
+| `--dim` | ベクトル次元数 (synthetic/glove で必須) |
+| `--base-limit` | ロードするベースベクトル数 |
+| `--query-limit` | 実行するクエリ数 |
+| `--topk` | 検索で返す上位K件 |
+| `--concurrency` | 並列ワーカー数 |
 
 ## 📊 Comparison
 
