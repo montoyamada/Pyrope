@@ -107,7 +107,9 @@ def serve():
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
     policy_service_pb2_grpc.add_PolicyServiceServicer_to_server(PolicyService(), server)
     _configure_ports(server, port)
-    print(f"Starting AI Sidecar server on port {port} (mTLS={'on' if _parse_bool_env('PYROPE_SIDECAR_MTLS_ENABLED') else 'off'})...")
+    print(
+        f"Starting AI Sidecar server on port {port} (mTLS={'on' if _parse_bool_env('PYROPE_SIDECAR_MTLS_ENABLED') else 'off'})..."
+    )
     server.start()
     try:
         while True:
