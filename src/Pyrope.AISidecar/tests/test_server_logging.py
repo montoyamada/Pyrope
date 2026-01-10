@@ -4,7 +4,6 @@ import json
 import tempfile
 import shutil
 from unittest.mock import MagicMock
-import policy_service_pb2
 from server import PolicyService
 
 
