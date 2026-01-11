@@ -34,7 +34,7 @@ namespace Pyrope.GarnetServer.Services
             }
 
             var key = GetKey(tenantId, userId);
-            
+
             // Enforce global API key uniqueness
             if (!_apiKeyIndex.TryAdd(apiKey, key))
             {

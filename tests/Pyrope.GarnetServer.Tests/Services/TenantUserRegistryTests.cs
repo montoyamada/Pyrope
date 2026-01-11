@@ -149,7 +149,7 @@ namespace Pyrope.GarnetServer.Tests.Services
             // Second user with same key in different tenant
             Assert.False(_registry.TryCreate(tenant2, "user2", Role.Reader, apiKey, out var user2));
             Assert.Null(user2);
-            
+
             // Verify user1 still exists and user2 doesn't
             Assert.True(_registry.TryGetByApiKey(apiKey, out var found));
             Assert.Equal("user1", found!.UserId);
@@ -163,10 +163,10 @@ namespace Pyrope.GarnetServer.Tests.Services
             var key2 = "key2";
 
             Assert.True(_registry.TryCreate(tenant, "user1", Role.Reader, key1, out _));
-            
+
             // Same userId, different apiKey
             Assert.False(_registry.TryCreate(tenant, "user1", Role.Operator, key2, out _));
-            
+
             // key2 should NOT be in index because user creation failed
             Assert.False(_registry.TryGetByApiKey(key2, out _));
             // key1 should still be in index

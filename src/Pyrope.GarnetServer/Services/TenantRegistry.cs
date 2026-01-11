@@ -13,7 +13,7 @@ namespace Pyrope.GarnetServer.Services
         public bool TryCreate(string tenantId, TenantQuota quotas, out TenantConfig? config, string? apiKey = null)
         {
             TenantNamespace.ValidateTenantId(tenantId);
-            
+
             // Enforce API key uniqueness if provided
             if (!string.IsNullOrEmpty(apiKey))
             {
@@ -44,7 +44,7 @@ namespace Pyrope.GarnetServer.Services
 
         public bool TryGet(string tenantId, out TenantConfig? config)
         {
-            TenantNamespace.TryValidateTenantId(tenantId, out _); 
+            TenantNamespace.TryValidateTenantId(tenantId, out _);
             return _tenants.TryGetValue(tenantId, out config);
         }
 
@@ -77,7 +77,7 @@ namespace Pyrope.GarnetServer.Services
             if (_tenants.TryGetValue(tenantId, out var existing))
             {
                 var oldKey = existing.ApiKey;
-                
+
                 // If the key is not changing, just return success
                 if (string.Equals(oldKey, apiKey, StringComparison.Ordinal))
                 {
@@ -96,7 +96,7 @@ namespace Pyrope.GarnetServer.Services
                 }
 
                 existing.UpdateApiKey(apiKey, DateTimeOffset.UtcNow);
-                
+
                 // Remove old key from index
                 if (!string.IsNullOrEmpty(oldKey))
                 {

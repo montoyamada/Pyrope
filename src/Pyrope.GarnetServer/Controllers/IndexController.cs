@@ -233,9 +233,9 @@ namespace Pyrope.GarnetServer.Controllers
             var normalized = path.Replace("\\", "/");
             if (normalized.Contains("..")) return false;
             // Block absolute system paths but allow /var/folders (macOS temp)
-            if (normalized.StartsWith("/etc") || 
-                (normalized.StartsWith("/var") && !normalized.StartsWith("/var/folders")) || 
-                normalized.StartsWith("/usr") || 
+            if (normalized.StartsWith("/etc") ||
+                (normalized.StartsWith("/var") && !normalized.StartsWith("/var/folders")) ||
+                normalized.StartsWith("/usr") ||
                 normalized.StartsWith("/bin")) return false;
             return true;
         }

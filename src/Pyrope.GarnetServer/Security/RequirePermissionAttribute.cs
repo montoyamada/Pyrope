@@ -48,7 +48,7 @@ namespace Pyrope.GarnetServer.Security
             }
 
             var authService = context.HttpContext.RequestServices.GetRequiredService<IAuthorizationService>();
-            
+
             // API Key should be injected into HttpContext.Items by ApiKeyAuthMiddleware
             var apiKey = context.HttpContext.Items["PyropeApiKey"]?.ToString();
             var tenantId = context.RouteData.Values["tenantId"]?.ToString();
@@ -68,7 +68,7 @@ namespace Pyrope.GarnetServer.Security
             // Note: If tenantId is still missing, it depends on the action. 
             // If it's a global action, authService needs to handle it.
             // For now, most actions have a tenantId.
-            
+
             if (string.IsNullOrEmpty(tenantId))
             {
                 // Search in body for certain requests (e.g. CreateIndex)
@@ -84,7 +84,7 @@ namespace Pyrope.GarnetServer.Security
             // Store UserId and Role in Items for subsequent use (e.g. Audit Logging)
             var userId = authService.GetUserId(tenantId ?? "system", apiKey);
             var role = authService.GetRole(tenantId ?? "system", apiKey);
-            
+
             if (userId != null) context.HttpContext.Items["PyropeUserId"] = userId;
             if (role != null) context.HttpContext.Items["PyropeUserRole"] = role.ToString();
 
