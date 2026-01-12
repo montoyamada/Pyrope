@@ -24,7 +24,7 @@ class PredictionEngine:
         if last is not None and last != cluster_id:
             # Prune if too many clusters for this tenant
             if len(self.transitions[key]) >= self.max_clusters_per_tenant and last not in self.transitions[key]:
-                 self._prune_clusters(key)
+                self._prune_clusters(key)
 
             # Record transition
             self.transitions[key][last][cluster_id] += 1
