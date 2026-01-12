@@ -31,7 +31,7 @@ namespace Pyrope.GarnetServer.Services
         public bool TryQueuePrefetch(Func<CancellationToken, Task> workItem)
         {
             if (workItem == null) throw new ArgumentNullException(nameof(workItem));
-            
+
             bool success = _queue.Writer.TryWrite(workItem);
             if (!success)
             {
@@ -49,7 +49,7 @@ namespace Pyrope.GarnetServer.Services
                 try
                 {
                     var workItem = await _queue.Reader.ReadAsync(stoppingToken);
-                    
+
                     // Execute prefetch in the background
                     // We catch exceptions here so one bad prefetch doesn't kill the worker
                     try

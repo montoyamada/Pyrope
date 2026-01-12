@@ -313,7 +313,7 @@ namespace Pyrope.GarnetServer.Extensions
                                                         // Ideally, we'd use PolicyEngine, but for prefetch we assume high utility.
                                                         _resultCache.Set(pfKey, pfJson, TimeSpan.FromMinutes(5));
                                                     }
-                                                    
+
                                                     await Task.CompletedTask;
                                                 });
                                             }
