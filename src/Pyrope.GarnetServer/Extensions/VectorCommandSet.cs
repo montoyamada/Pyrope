@@ -11,6 +11,7 @@ using Pyrope.GarnetServer.Vector;
 using Pyrope.GarnetServer.Policies;
 using Tsavorite.core;
 using Microsoft.Extensions.Logging;
+using Pyrope.GarnetServer.DataModel;
 
 namespace Pyrope.GarnetServer.Extensions
 {
@@ -37,6 +38,7 @@ namespace Pyrope.GarnetServer.Extensions
         private readonly ITenantAuthenticator? _tenantAuthenticator;
         private readonly ISloGuardrails? _sloGuardrails;
         private readonly SemanticClusterRegistry? _clusterRegistry;
+        private readonly CanonicalKeyMap? _canonicalKeyMap;
         private readonly IPredictivePrefetcher? _prefetcher;
         private readonly IPrefetchBackgroundQueue? _prefetchQueue;
         private readonly ILogger? _logger;
@@ -52,6 +54,7 @@ namespace Pyrope.GarnetServer.Extensions
             ISloGuardrails? sloGuardrails = null,
 
             SemanticClusterRegistry? clusterRegistry = null,
+            CanonicalKeyMap? canonicalKeyMap = null,
             IPredictivePrefetcher? prefetcher = null,
             IPrefetchBackgroundQueue? prefetchQueue = null,
             ILogger? logger = null)
@@ -65,6 +68,7 @@ namespace Pyrope.GarnetServer.Extensions
             _tenantAuthenticator = tenantAuthenticator;
             _sloGuardrails = sloGuardrails;
             _clusterRegistry = clusterRegistry;
+            _canonicalKeyMap = canonicalKeyMap;
             _prefetcher = prefetcher;
             _prefetchQueue = prefetchQueue;
             _logger = logger;
@@ -215,6 +219,39 @@ namespace Pyrope.GarnetServer.Extensions
                             }
                             else
                             {
+                                // P6-9: Canonical Alias Lookup (L0.5)
+                                if (_canonicalKeyMap != null && _canonicalKeyMap.TryGetCanonical(queryKey.GetHashCode(), out var canonicalHash, out var confidence))
+                                {
+                                    // Threshold check (e.g. 0.8)
+                                    if (confidence >= 0.8f && _resultCache.TryGetAliased(canonicalHash, queryKey, out var aliasJson) && !string.IsNullOrEmpty(aliasJson))
+                                    {
+                                        var aliasHits = JsonSerializer.Deserialize<List<SearchHitDto>>(aliasJson);
+                                        if (aliasHits != null)
+                                        {
+                                            // Treated as cache hit via alias
+                                            cacheHit = true;
+                                            cacheEnd = Stopwatch.GetTimestamp();
+                                            var totalEnd = Stopwatch.GetTimestamp();
+                                            var traceJson = traceEnabled
+                                                ? JsonSerializer.Serialize(new TraceInfo
+                                                {
+                                                    RequestId = requestId,
+                                                    CacheHit = true,
+                                                    Info = $"Alias for {canonicalHash} (conf={confidence:F2})",
+                                                    LatencyMs = ElapsedMilliseconds(totalStart, totalEnd),
+                                                    PolicyMs = ElapsedMilliseconds(policyStart, policyEnd),
+                                                    CacheMs = ElapsedMilliseconds(cacheStart, cacheEnd),
+                                                    FaissMs = 0
+                                                })
+                                                : null;
+                                            WriteResults(ref output, aliasHits, request.IncludeMeta, traceJson);
+                                            _metrics?.RecordCacheHit();
+                                            _metrics?.RecordSearchLatency(TimeSpan.FromMilliseconds(ElapsedMilliseconds(totalStart, totalEnd)));
+                                            return true;
+                                        }
+                                    }
+                                }
+
                                 // 2. Try L1 (Semantic/Fuzzy)
                                 if (_lshService != null)
                                 {
@@ -372,8 +409,25 @@ namespace Pyrope.GarnetServer.Extensions
                         return true;
                     }
 
-                    faissStart = Stopwatch.GetTimestamp();
-                    var searchOptions = _sloGuardrails?.GetSearchOptions(request.TenantId, request.IndexName);
+                    object? budgetAdjustment = null;
+                    var searchOptions = _sloGuardrails?.GetSearchOptions(request.TenantId, request.IndexName) ?? new SearchOptions();
+
+                    if (_quotaEnforcer != null)
+                    {
+                        var estimatedCost = CostCalculator.EstimateSearchCost(index.GetStats(), request.TopK);
+                        _quotaEnforcer.RecordCost(request.TenantId, estimatedCost);
+
+                        if (_quotaEnforcer.IsOverBudget(request.TenantId))
+                        {
+                            var originalScans = searchOptions.MaxScans;
+                            // Reduce MaxScans by 50% or set a default ceiling if null
+                            var reducedScans = originalScans.HasValue ? (int?)(originalScans.Value * 0.5) : Math.Min(1000, index.GetStats().Count / 2);
+                            if (reducedScans < 1) reducedScans = 1;
+
+                            searchOptions = searchOptions with { MaxScans = reducedScans };
+                            budgetAdjustment = new { reason = "budget_exceeded", original_max_scans = originalScans, new_max_scans = reducedScans };
+                        }
+                    }
                     var rawResults = index.Search(request.Vector, request.TopK, searchOptions);
                     faissEnd = Stopwatch.GetTimestamp();
                     var results = new List<SearchHitDto>(rawResults.Count);
@@ -406,7 +460,8 @@ namespace Pyrope.GarnetServer.Extensions
                             LatencyMs = ElapsedMilliseconds(totalStart, totalFinish),
                             PolicyMs = ElapsedMilliseconds(policyStart, policyEnd),
                             CacheMs = ElapsedMilliseconds(cacheStart, cacheEnd),
-                            FaissMs = ElapsedMilliseconds(faissStart, faissEnd)
+                            FaissMs = ElapsedMilliseconds(faissStart, faissEnd),
+                            BudgetAdjustment = budgetAdjustment
                         })
                         : null;
                     WriteResults(ref output, results, request.IncludeMeta, tracePayload);
@@ -437,7 +492,15 @@ namespace Pyrope.GarnetServer.Extensions
                             {
                                 var roundedK = QueryKey.RoundK(request.TopK);
                                 var l2Key = new QueryKey(request.TenantId, request.IndexName, request.Vector, roundedK, metric, request.FilterTags, null, clusterId);
-                                _resultCache.Set(l2Key, json, policyDecision.Ttl);
+
+                                // P6-7 Semantic TTL adjustment
+                                var ttl = policyDecision.Ttl;
+                                if (ttl.HasValue && _clusterRegistry != null)
+                                {
+                                    ttl = _clusterRegistry.GetRecommendedTTL(request.TenantId, request.IndexName, clusterId, ttl.Value);
+                                }
+
+                                _resultCache.Set(l2Key, json, ttl);
                             }
                         }
                     }
@@ -520,11 +583,15 @@ namespace Pyrope.GarnetServer.Extensions
                         Store.Upsert(record);
                         index.Upsert(request.Id, request.Vector);
                     }
+
                     else
                     {
                         WriteErrorCode(ref output, "ERR Unsupported write command.");
                         return true;
                     }
+
+                    // P6-7 Semantic TTL: Record write heat
+                    _clusterRegistry?.RecordWrite(request.TenantId, request.IndexName, request.Vector, index.Metric);
 
                     IndexRegistry.IncrementEpoch(request.TenantId, request.IndexName);
                     output.WriteSimpleString(VectorErrorCodes.Ok);
@@ -776,10 +843,12 @@ namespace Pyrope.GarnetServer.Extensions
         {
             public string? RequestId { get; set; }
             public bool CacheHit { get; set; }
+            public string? Info { get; set; }
             public double LatencyMs { get; set; }
             public double PolicyMs { get; set; }
             public double CacheMs { get; set; }
             public double FaissMs { get; set; }
+            public object? BudgetAdjustment { get; set; }
         }
         private static bool IsClusterCloseEnough(float score, VectorMetric metric, float queryCost)
         {
