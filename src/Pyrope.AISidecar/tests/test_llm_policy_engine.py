@@ -5,7 +5,7 @@ Red Phase: These tests define the expected behavior before implementation.
 """
 import asyncio
 import unittest
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 from dataclasses import dataclass
 
 
@@ -25,7 +25,7 @@ except ImportError:
         gpu_utilization: float = 0.0
 
 
-from policy_engine import HeuristicPolicyEngine, PolicyConfig
+from policy_engine import HeuristicPolicyEngine
 
 
 class TestLLMPolicyEnginePromptGeneration(unittest.TestCase):
@@ -218,7 +218,6 @@ class TestLLMPolicyEngineDecisionCaching(unittest.TestCase):
 
         async def run_test():
             call_count = 0
-            callback_holder = {}
 
             async def mock_submit(prompt, callback=None, priority=0):
                 nonlocal call_count
