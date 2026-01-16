@@ -22,6 +22,11 @@ LLM_POLICY_ENABLED = os.getenv("LLM_POLICY_ENABLED", "false").lower() == "true"
 
 # Configure logging
 import logging
+import warnings
+
+# Suppress google.generativeai deprecation warning for clean demo output
+warnings.filterwarnings("ignore", category=FutureWarning, module="google.generativeai")
+
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
