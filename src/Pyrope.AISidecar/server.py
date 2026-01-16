@@ -13,19 +13,34 @@ from feature_engineering import FeatureEngineer
 from policy_engine import HeuristicPolicyEngine
 from logger import QueryLogger
 from prediction_engine import PredictionEngine
-
+from llm_policy_engine import LLMPolicyEngine, SystemMetrics
 
 from llm_worker import LLMWorker
+
+# Feature flag for Gemini-based cache control
+LLM_POLICY_ENABLED = os.getenv("LLM_POLICY_ENABLED", "false").lower() == "true"
 
 
 class PolicyService(policy_service_pb2_grpc.PolicyServiceServicer):
     def __init__(self, log_path="logs/query_log.jsonl"):
         self._feature_engineer = FeatureEngineer()
-        self._policy_engine = HeuristicPolicyEngine()
+        self._heuristic_engine = HeuristicPolicyEngine()
         self._prediction_engine = PredictionEngine()
         self._logger = QueryLogger(log_path)
         self._latest_system_features = None
         self._llm_worker = LLMWorker()  # Initialize LLM Worker
+        self._event_loop = None  # Will be set when async loop starts
+
+        # P6-13: LLMPolicyEngine with fallback to heuristic
+        if LLM_POLICY_ENABLED:
+            self._llm_policy_engine = LLMPolicyEngine(
+                llm_worker=self._llm_worker,
+                fallback=self._heuristic_engine,
+            )
+            print("LLM Policy Engine ENABLED (Gemini-based cache control)")
+        else:
+            self._llm_policy_engine = None
+            print("LLM Policy Engine DISABLED (using heuristic)")
 
         # Start background training
         self._training_thread = threading.Thread(target=self._training_loop, daemon=True)
@@ -52,8 +67,27 @@ class PolicyService(policy_service_pb2_grpc.PolicyServiceServicer):
     def ReportSystemMetrics(self, request, context):
         self._latest_system_features = self._feature_engineer.extract_system_features(request.qps, queue_depth=None)
 
-        # Compute policy based on miss_rate
-        policy_config = self._policy_engine.compute_policy(request.miss_rate)
+        # P6-13: Use LLM or heuristic based on feature flag
+        if self._llm_policy_engine and self._event_loop:
+            # Async LLM path
+            metrics = SystemMetrics(
+                qps=request.qps,
+                miss_rate=request.miss_rate,
+                latency_p99_ms=request.latency_p99_ms,
+                cpu_utilization=request.cpu_utilization,
+                gpu_utilization=request.gpu_utilization,
+            )
+            future = asyncio.run_coroutine_threadsafe(
+                self._llm_policy_engine.compute_policy(metrics), self._event_loop
+            )
+            try:
+                policy_config = future.result(timeout=5.0)
+            except Exception as e:
+                print(f"LLM policy error: {e}, falling back to heuristic")
+                policy_config = self._heuristic_engine.compute_policy(request.miss_rate)
+        else:
+            # Heuristic path
+            policy_config = self._heuristic_engine.compute_policy(request.miss_rate)
 
         print(
             "Metrics: "
@@ -158,6 +192,9 @@ def serve():
     # Create loop and keep reference for clean shutdown
     loop = asyncio.new_event_loop()
     llm_worker = policy_service._llm_worker
+
+    # P6-13: Pass event loop to PolicyService for LLM async calls
+    policy_service._event_loop = loop
 
     def run_async_loop():
         asyncio.set_event_loop(loop)
