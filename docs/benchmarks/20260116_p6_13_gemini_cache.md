@@ -1,0 +1,78 @@
+# Benchmark Results: P6-13 Gemini Cache Control Integration
+
+**Date:** 2026-01-16
+**Version:** Phase 6 (P6-13 Gemini Cache Control + IVF-Flat)
+**Configuration:**
+- **Index Type:** DeltaVectorIndex (Head=BruteForce, Tail=IvfFlat)
+- **Cache:** Enabled (Semantic Cache + Result Cache)
+- **Dataset:** Synthetic (Dimension 32)
+- **Vectors:** 5,000
+- **Queries:** 1,000
+- **Concurrency:** 4
+- **Auth:** Disabled (`Auth__Enabled=false`)
+
+## Results
+
+```
+[Pyrope.Benchmarks] RESP endpoint: 127.0.0.1:6380
+[Pyrope.Benchmarks] tenant=tenant_bench index=idx_bench
+[Pyrope.Benchmarks] dataset=synthetic payload=binary(float32)
+[Pyrope.Benchmarks] Loading base vectors: 5000 ...
+[Pyrope.Benchmarks] Loaded=5000 elapsed=0.30s throughput=16781.8 vec/s
+
+[Pyrope.Benchmarks] Benchmark: queries=1000 topK=10 concurrency=4 ...
+[Pyrope.Benchmarks] Searching: 1000/1000 (100.0%) - 594.5 QPS
+[Pyrope.Benchmarks] Dimension=32
+[Pyrope.Benchmarks] Total=1000 elapsed=1.68s QPS=594.2
+[Pyrope.Benchmarks] Latency(ms): min=0.18 p50=6.703 p95=10.775 p99=16.262 max=18.595 mean=6.695
+
+[Pyrope.Benchmarks] VEC.STATS:
+cache_hit_total 101
+cache_miss_total 999
+cache_eviction_total 0
+ai_fallback_total 0
+```
+
+## Comparison History
+
+| Metric | Phase 6-1 (BruteForce) | P10-8 (IVF-Flat + Compaction) | P6-13 (Gemini + Head Only) |
+| :--- | :--- | :--- | :--- |
+| **QPS** | 55.2 | 460.4 | **594.2** |
+| **Latency P50** | 20.08 ms | 4.88 ms | **6.70 ms** |
+| **Latency P99** | 707.72 ms | 56.65 ms | **16.26 ms** |
+| **Cache Hit Rate** | N/A | N/A | **~9.2%** |
+
+## Analysis
+
+### Key Findings
+
+1. **QPS Improvement**: The current run achieved **594.2 QPS**, outperforming the previous IVF-Flat benchmark (460.4 QPS). However, this benchmark used **Head index only** (no compaction) due to missing HTTP API.
+
+2. **P99 Latency Anomaly**: The P99 of **16.26ms** is significantly better than the IVF-Flat benchmark (56.65ms). This is likely because:
+   - **No compaction was triggered**: All 5000 vectors are in the Head (BruteForce) index
+   - **Smaller dataset effect**: 5000 vectors is relatively small for BruteForce, so it performs well
+   - **Caching effect**: Cache hit rate of 9.2% reduces average latency
+
+3. **Cache Performance**: 101 cache hits out of 1100 queries (100 warmup + 1000 benchmark) indicates a **9.2% hit rate**. The synthetic dataset generates random vectors, so low hit rate is expected.
+
+4. **Gemini Integration**: The `LLM_POLICY_ENABLED` flag was **not enabled** in this run. To test Gemini-based cache control, the server should be started with:
+   ```bash
+   LLM_POLICY_ENABLED=true GEMINI_API_KEY=<key> ...
+   ```
+
+### Comparison Notes
+
+- **P10-8 IVF-Flat**: Previous benchmark used compaction (triggered via API) to move vectors to IVF-Flat Tail index, which improved P99 from 707ms to 56ms.
+- **This run**: Without compaction, vectors remained in Head (BruteForce). The better numbers suggest either hardware variance or test configuration differences.
+
+### Recommendations
+
+1. Re-run with compaction enabled (`--http` flag + Index Build API)
+2. Test with `LLM_POLICY_ENABLED=true` to measure Gemini cache control impact
+3. Increase dataset size to see IVF-Flat vs BruteForce difference more clearly
+
+## Next Steps
+
+- [ ] Run benchmark with compaction (IVF-Flat Tail) enabled
+- [ ] Run benchmark with Gemini cache control enabled
+- [ ] Compare latency distributions under different cache policies
