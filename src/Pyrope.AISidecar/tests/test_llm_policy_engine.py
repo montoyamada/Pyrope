@@ -226,14 +226,22 @@ class TestLLMPolicyEngineDecisionCaching(unittest.TestCase):
 
             metrics = SystemMetrics(miss_rate=0.3)
 
-            # First call
+            # First call - returns fallback immediately (cold start)
             config1 = await engine.compute_policy(metrics)
-            # Second call with same metrics
+            
+            # Allow async callback to update cache
+            await asyncio.sleep(0.01)
+            
+            # Second call with same metrics - returns cached LLM result
             config2 = await engine.compute_policy(metrics)
 
             self.assertEqual(call_count, 1)  # Only one LLM call
-            self.assertEqual(config1.ttl_seconds, config2.ttl_seconds)
-
+            
+            # Config1 should be fallback (e.g. Heuristic return)
+            # Config2 should be LLM result (120)
+            self.assertNotEqual(config1.ttl_seconds, config2.ttl_seconds)
+            self.assertEqual(config2.ttl_seconds, 120)
+            
         asyncio.run(run_test())
 
     def test_cache_expires(self):
