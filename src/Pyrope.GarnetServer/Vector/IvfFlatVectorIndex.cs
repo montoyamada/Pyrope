@@ -117,7 +117,7 @@ namespace Pyrope.GarnetServer.Vector
                 if (k <= 0) k = 1;
 
                 var centroids = TrainKMeans(allVectors, k);
-                
+
                 // Precompile centroid norms for faster assignment/search if needed
                 var cNorms = centroids.Select(c => Metric == VectorMetric.Cosine ? ComputeNorm(c) : 0f).ToList();
 
@@ -335,7 +335,7 @@ namespace Pyrope.GarnetServer.Vector
                 for (int i = 0; i < k; i++) clusters[i] = new List<float[]>();
 
                 bool changed = false;
-                
+
                 // Temp norms for centroids during training iteration
                 var cNorms = centroids.Select(c => Metric == VectorMetric.Cosine ? ComputeNorm(c) : 0f).ToList();
 
