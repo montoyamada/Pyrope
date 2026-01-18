@@ -17,14 +17,14 @@ namespace Pyrope.GarnetServer.Vector
             {
                 var vSum = System.Numerics.Vector<float>.Zero;
                 int end = a.Length - vectorSize;
-                
+
                 for (; i <= end; i += vectorSize)
                 {
                     var va = new System.Numerics.Vector<float>(a, i);
                     var vb = new System.Numerics.Vector<float>(b, i);
                     vSum += va * vb;
                 }
-                
+
                 sum += System.Numerics.Vector.Dot(vSum, System.Numerics.Vector<float>.One);
             }
 
@@ -38,7 +38,7 @@ namespace Pyrope.GarnetServer.Vector
 
         public static float L2Squared(float[] a, float[] b)
         {
-             ValidateInput(a, b);
+            ValidateInput(a, b);
 
             int vectorSize = System.Numerics.Vector<float>.Count;
             int i = 0;
@@ -48,7 +48,7 @@ namespace Pyrope.GarnetServer.Vector
             {
                 var vSum = System.Numerics.Vector<float>.Zero;
                 int end = a.Length - vectorSize;
-                
+
                 for (; i <= end; i += vectorSize)
                 {
                     var va = new System.Numerics.Vector<float>(a, i);
@@ -56,7 +56,7 @@ namespace Pyrope.GarnetServer.Vector
                     var diff = va - vb;
                     vSum += diff * diff;
                 }
-                
+
                 sum += System.Numerics.Vector.Dot(vSum, System.Numerics.Vector<float>.One);
             }
 
@@ -81,13 +81,13 @@ namespace Pyrope.GarnetServer.Vector
             {
                 var vSum = System.Numerics.Vector<float>.Zero;
                 int end = vector.Length - vectorSize;
-                
+
                 for (; i <= end; i += vectorSize)
                 {
                     var v = new System.Numerics.Vector<float>(vector, i);
                     vSum += v * v;
                 }
-                
+
                 sum += System.Numerics.Vector.Dot(vSum, System.Numerics.Vector<float>.One);
             }
 
