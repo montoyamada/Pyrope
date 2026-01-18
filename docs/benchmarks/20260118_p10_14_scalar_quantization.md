@@ -27,3 +27,22 @@ This suggests SQ8 reduces GC pressure significantly (less memory churn or better
 - **Distance**: `L2Squared8Bit` uses `fixed` pointers, 4x loop unrolling, and `Vector.Widen` chain.
 - **Index**: `BruteForceVectorIndex` updated to support `EnableQuantization` flag.
 
+## Discussion & Analysis
+
+### 1. Throughput & Stability
+- **Throughput (1.54x)**: The improvement is significant, primarily driven by reduced memory bandwidth (32-bit float → 8-bit byte). The speedup is not 4x due to the computational overhead of `Vector.Widen` and integer arithmetic in the SIMD path.
+- **P99 Latency (144ms → 20ms)**: The dramatic drop in tail latency indicates improved system stability. The smaller memory footprint likely reduces CPU cache thrashing and GC pauses, preventing latency spikes under load.
+- **P50 Regression (4.2ms → 8.1ms)**: The increase in median latency suggests a higher fixed cost per query, likely due to:
+  - Dictionary iteration overhead (`Dictionary<string, byte[]>`) vs direct array access.
+  - Runtime quantization overhead for the query vector.
+  - JIT or cold-start effects on the new code path.
+
+### 2. Accuracy & Recall
+- **Current Limitation**: The implementation uses **Local Scalar Quantization (LSQ)** (min/max stored per vector) but performs distance calculations on raw bytes (`DotProduct8Bit`). This ignores the scaling factors, effectively treating all vectors as if they had the same dynamic range.
+- **Impact**: Ranking accuracy (Recall@K) is likely degraded compared to Float32.
+- **Next Steps**:
+  - Implement a Re-ranking phase: Use SQ8 to retrieve top N*K candidates, then re-score with Float32.
+  - Or switch to **Global Scalar Quantization** (shared min/max) if vector distribution allows.
+
+### 3. Future Optimization (P10-12)
+- **Memory Layout**: Moving from `Dictionary<string, byte[]>` to a contiguous `byte[]` buffer (SoA or Flat Blob) will eliminate pointer chasing and drastically improve cache locality, potentially doubling the speedup.
