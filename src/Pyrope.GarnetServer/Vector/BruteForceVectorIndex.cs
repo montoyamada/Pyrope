@@ -14,12 +14,12 @@ namespace Pyrope.GarnetServer.Vector
         private readonly List<string> _ids = new();
         private readonly Dictionary<string, int> _idMap = new();
         private readonly List<bool> _isDeleted = new();
-        
+
         // Quantized Data (P10-12)
         // Nullable byte arrays for GC reclamation
         private readonly List<byte[]?> _quantizedVectors = new();
         private readonly List<(float Min, float Max)> _quantizationParams = new();
-        
+
         private readonly ReaderWriterLockSlim _lock = new();
 
         public bool EnableQuantization { get; set; } = false;
@@ -106,7 +106,7 @@ namespace Pyrope.GarnetServer.Vector
             _lock.EnterReadLock();
             try
             {
-                int activeCount = _idMap.Count; 
+                int activeCount = _idMap.Count;
                 return new IndexStats(activeCount, Dimension, Metric.ToString());
             }
             finally
@@ -143,7 +143,7 @@ namespace Pyrope.GarnetServer.Vector
         private void InternalAdd(string id, float[] vector, float norm)
         {
             int index = _vectors.Count;
-            
+
             _idMap.Add(id, index);
             _ids.Add(id);
             _vectors.Add(new VectorEntry(vector, norm));
@@ -217,11 +217,11 @@ namespace Pyrope.GarnetServer.Vector
                 {
                     _isDeleted[index] = true;
                     _idMap.Remove(id);
-                    
+
                     // Fix: Clear references to allow GC
                     _vectors[index] = null;
                     _quantizedVectors[index] = null;
-                    
+
                     return true;
                 }
                 return false;
@@ -238,7 +238,7 @@ namespace Pyrope.GarnetServer.Vector
             try
             {
                 var list = new List<KeyValuePair<string, float[]>>(_idMap.Count);
-                for(int i=0; i<_vectors.Count; i++)
+                for (int i = 0; i < _vectors.Count; i++)
                 {
                     if (!_isDeleted[i])
                     {
@@ -275,7 +275,7 @@ namespace Pyrope.GarnetServer.Vector
 
                 var heap = new PriorityQueue<SearchResult, float>();
                 int scanned = 0;
-                
+
                 byte[]? qQueryBuffer = null;
                 try
                 {
@@ -285,9 +285,9 @@ namespace Pyrope.GarnetServer.Vector
                         qQueryBuffer = ArrayPool<byte>.Shared.Rent(Dimension);
                         // Slice strictly to Dimension
                         Span<byte> qQuerySpan = qQueryBuffer.AsSpan(0, Dimension);
-                        
+
                         ScalarQuantizer.Quantize(query, qQuerySpan, out _, out _);
-                        
+
                         // Optimized Loop P10-12
                         for (int i = 0; i < count; i++)
                         {
@@ -296,14 +296,14 @@ namespace Pyrope.GarnetServer.Vector
                             scanned++;
 
                             var qTarget = _quantizedVectors[i];
-                            
+
                             // Check for validity (might be null if deleted or empty if added when disabled)
-                            if (qTarget == null || qTarget.Length == 0) continue; 
+                            if (qTarget == null || qTarget.Length == 0) continue;
 
                             // Fix: Use Span overload passing sliced query and target
                             // qTarget should technically be Dimension length if valid
                             ReadOnlySpan<byte> targetSpan = new ReadOnlySpan<byte>(qTarget);
-                            
+
                             // Safety check for target length (though InternalAdd guarantees correctness)
                             if (targetSpan.Length != Dimension) continue;
 
@@ -311,7 +311,7 @@ namespace Pyrope.GarnetServer.Vector
                             {
                                 VectorMetric.L2 => -VectorMath.L2Squared8Bit(qQuerySpan, targetSpan),
                                 VectorMetric.InnerProduct => VectorMath.DotProduct8Bit(qQuerySpan, targetSpan),
-                                VectorMetric.Cosine => VectorMath.DotProduct8Bit(qQuerySpan, targetSpan), 
+                                VectorMetric.Cosine => VectorMath.DotProduct8Bit(qQuerySpan, targetSpan),
                                 _ => throw new InvalidOperationException()
                             };
 

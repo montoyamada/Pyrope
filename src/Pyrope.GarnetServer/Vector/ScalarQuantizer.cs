@@ -25,7 +25,7 @@ namespace Pyrope.GarnetServer.Vector
             {
                 throw new ArgumentException("Vector and destination lengths must match.");
             }
-            
+
             if (vector.IsEmpty)
             {
                 min = 0;

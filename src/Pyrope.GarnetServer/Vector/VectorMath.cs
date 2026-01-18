@@ -275,7 +275,7 @@ namespace Pyrope.GarnetServer.Vector
         public static unsafe long L2Squared8Bit(ReadOnlySpan<byte> a, ReadOnlySpan<byte> b)
         {
             if (a.Length != b.Length) throw new ArgumentException("Vector dimension mismatch");
-            
+
             long sum = 0;
             int length = a.Length;
             int i = 0;
