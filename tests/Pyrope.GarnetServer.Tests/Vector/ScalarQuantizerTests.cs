@@ -12,9 +12,9 @@ namespace Pyrope.GarnetServer.Tests.Vector
         {
             var original = new float[] { 0.0f, 0.5f, 1.0f, -1.0f };
             // Expected Range: -1.0 to 1.0
-            
+
             var quantized = ScalarQuantizer.Quantize(original, out float min, out float max);
-            
+
             Assert.Equal(original.Length, quantized.Length);
             Assert.Equal(-1.0f, min);
             Assert.Equal(1.0f, max);
@@ -33,12 +33,12 @@ namespace Pyrope.GarnetServer.Tests.Vector
         {
             var original = new float[] { 0.5f, 0.5f, 0.5f };
             var quantized = ScalarQuantizer.Quantize(original, out float min, out float max);
-            
+
             Assert.Equal(0.5f, min);
             Assert.Equal(0.5f, max);
             // If min == max, all bytes should be 0 or 127 or something consistent.
-            Assert.All(quantized, b => Assert.Equal(0, b)); 
-            
+            Assert.All(quantized, b => Assert.Equal(0, b));
+
             var reconstructed = ScalarQuantizer.Dequantize(quantized, min, max);
             Assert.All(reconstructed, f => Assert.Equal(0.5f, f));
         }

@@ -275,115 +275,115 @@ namespace Pyrope.GarnetServer.Vector
 
             if (System.Numerics.Vector.IsHardwareAccelerated && length >= System.Numerics.Vector<byte>.Count)
             {
-                 int vectorCount = System.Numerics.Vector<byte>.Count;
-                 int stride = vectorCount * 4;
-                 int end = length - stride;
-                 
-                 var vSumInt = System.Numerics.Vector<int>.Zero;
+                int vectorCount = System.Numerics.Vector<byte>.Count;
+                int stride = vectorCount * 4;
+                int end = length - stride;
 
-                 fixed (byte* pA = a)
-                 fixed (byte* pB = b)
-                 {
-                     // Unrolled Loop (4x)
-                     while (i <= end)
-                     {
-                         // Block 1
-                         {
-                             var va = *(System.Numerics.Vector<byte>*)(pA + i);
-                             var vb = *(System.Numerics.Vector<byte>*)(pB + i);
-                             System.Numerics.Vector.Widen(va, out var vaLow, out var vaHigh);
-                             System.Numerics.Vector.Widen(vb, out var vbLow, out var vbHigh);
-                             
-                             var diffLow = System.Numerics.Vector.Max(vaLow, vbLow) - System.Numerics.Vector.Min(vaLow, vbLow);
-                             var diffHigh = System.Numerics.Vector.Max(vaHigh, vbHigh) - System.Numerics.Vector.Min(vaHigh, vbHigh);
-                             
-                             var sqLow = diffLow * diffLow;
-                             var sqHigh = diffHigh * diffHigh;
-                             
-                             System.Numerics.Vector.Widen(sqLow, out var sLow1, out var sLow2); 
-                             System.Numerics.Vector.Widen(sqHigh, out var sHigh1, out var sHigh2);
-                             
-                             vSumInt += System.Numerics.Vector.AsVectorInt32(sLow1);
-                             vSumInt += System.Numerics.Vector.AsVectorInt32(sLow2);
-                             vSumInt += System.Numerics.Vector.AsVectorInt32(sHigh1);
-                             vSumInt += System.Numerics.Vector.AsVectorInt32(sHigh2);
-                         }
-                         // Block 2
-                         {
-                             var va = *(System.Numerics.Vector<byte>*)(pA + i + vectorCount);
-                             var vb = *(System.Numerics.Vector<byte>*)(pB + i + vectorCount);
-                             System.Numerics.Vector.Widen(va, out var vaLow, out var vaHigh);
-                             System.Numerics.Vector.Widen(vb, out var vbLow, out var vbHigh);
-                             var diffLow = System.Numerics.Vector.Max(vaLow, vbLow) - System.Numerics.Vector.Min(vaLow, vbLow);
-                             var diffHigh = System.Numerics.Vector.Max(vaHigh, vbHigh) - System.Numerics.Vector.Min(vaHigh, vbHigh);
-                             var sqLow = diffLow * diffLow;
-                             var sqHigh = diffHigh * diffHigh;
-                             System.Numerics.Vector.Widen(sqLow, out var sLow1, out var sLow2); 
-                             System.Numerics.Vector.Widen(sqHigh, out var sHigh1, out var sHigh2);
-                             vSumInt += System.Numerics.Vector.AsVectorInt32(sLow1);
-                             vSumInt += System.Numerics.Vector.AsVectorInt32(sLow2);
-                             vSumInt += System.Numerics.Vector.AsVectorInt32(sHigh1);
-                             vSumInt += System.Numerics.Vector.AsVectorInt32(sHigh2);
-                         }
-                         // Block 3
-                         {
-                             var va = *(System.Numerics.Vector<byte>*)(pA + i + vectorCount * 2);
-                             var vb = *(System.Numerics.Vector<byte>*)(pB + i + vectorCount * 2);
-                             System.Numerics.Vector.Widen(va, out var vaLow, out var vaHigh);
-                             System.Numerics.Vector.Widen(vb, out var vbLow, out var vbHigh);
-                             var diffLow = System.Numerics.Vector.Max(vaLow, vbLow) - System.Numerics.Vector.Min(vaLow, vbLow);
-                             var diffHigh = System.Numerics.Vector.Max(vaHigh, vbHigh) - System.Numerics.Vector.Min(vaHigh, vbHigh);
-                             var sqLow = diffLow * diffLow;
-                             var sqHigh = diffHigh * diffHigh;
-                             System.Numerics.Vector.Widen(sqLow, out var sLow1, out var sLow2); 
-                             System.Numerics.Vector.Widen(sqHigh, out var sHigh1, out var sHigh2);
-                             vSumInt += System.Numerics.Vector.AsVectorInt32(sLow1);
-                             vSumInt += System.Numerics.Vector.AsVectorInt32(sLow2);
-                             vSumInt += System.Numerics.Vector.AsVectorInt32(sHigh1);
-                             vSumInt += System.Numerics.Vector.AsVectorInt32(sHigh2);
-                         }
-                         // Block 4
-                         {
-                             var va = *(System.Numerics.Vector<byte>*)(pA + i + vectorCount * 3);
-                             var vb = *(System.Numerics.Vector<byte>*)(pB + i + vectorCount * 3);
-                             System.Numerics.Vector.Widen(va, out var vaLow, out var vaHigh);
-                             System.Numerics.Vector.Widen(vb, out var vbLow, out var vbHigh);
-                             var diffLow = System.Numerics.Vector.Max(vaLow, vbLow) - System.Numerics.Vector.Min(vaLow, vbLow);
-                             var diffHigh = System.Numerics.Vector.Max(vaHigh, vbHigh) - System.Numerics.Vector.Min(vaHigh, vbHigh);
-                             var sqLow = diffLow * diffLow;
-                             var sqHigh = diffHigh * diffHigh;
-                             System.Numerics.Vector.Widen(sqLow, out var sLow1, out var sLow2); 
-                             System.Numerics.Vector.Widen(sqHigh, out var sHigh1, out var sHigh2);
-                             vSumInt += System.Numerics.Vector.AsVectorInt32(sLow1);
-                             vSumInt += System.Numerics.Vector.AsVectorInt32(sLow2);
-                             vSumInt += System.Numerics.Vector.AsVectorInt32(sHigh1);
-                             vSumInt += System.Numerics.Vector.AsVectorInt32(sHigh2);
-                         }
-                         
-                         i += stride;
-                     }
-                     
-                     // Handle Clean-up (single vectors)
-                     while (i <= length - vectorCount)
-                     {
-                         var va = *(System.Numerics.Vector<byte>*)(pA + i);
-                         var vb = *(System.Numerics.Vector<byte>*)(pB + i);
-                         System.Numerics.Vector.Widen(va, out var vaLow, out var vaHigh);
-                         System.Numerics.Vector.Widen(vb, out var vbLow, out var vbHigh);
-                         var diffLow = System.Numerics.Vector.Max(vaLow, vbLow) - System.Numerics.Vector.Min(vaLow, vbLow);
-                         var diffHigh = System.Numerics.Vector.Max(vaHigh, vbHigh) - System.Numerics.Vector.Min(vaHigh, vbHigh);
-                         var sqLow = diffLow * diffLow;
-                         var sqHigh = diffHigh * diffHigh;
-                         System.Numerics.Vector.Widen(sqLow, out var sLow1, out var sLow2); 
-                         System.Numerics.Vector.Widen(sqHigh, out var sHigh1, out var sHigh2);
-                         vSumInt += System.Numerics.Vector.AsVectorInt32(sLow1);
-                         vSumInt += System.Numerics.Vector.AsVectorInt32(sLow2);
-                         vSumInt += System.Numerics.Vector.AsVectorInt32(sHigh1);
-                         vSumInt += System.Numerics.Vector.AsVectorInt32(sHigh2);
-                         i += vectorCount;
-                     }
-                 }
-                
+                var vSumInt = System.Numerics.Vector<int>.Zero;
+
+                fixed (byte* pA = a)
+                fixed (byte* pB = b)
+                {
+                    // Unrolled Loop (4x)
+                    while (i <= end)
+                    {
+                        // Block 1
+                        {
+                            var va = *(System.Numerics.Vector<byte>*)(pA + i);
+                            var vb = *(System.Numerics.Vector<byte>*)(pB + i);
+                            System.Numerics.Vector.Widen(va, out var vaLow, out var vaHigh);
+                            System.Numerics.Vector.Widen(vb, out var vbLow, out var vbHigh);
+
+                            var diffLow = System.Numerics.Vector.Max(vaLow, vbLow) - System.Numerics.Vector.Min(vaLow, vbLow);
+                            var diffHigh = System.Numerics.Vector.Max(vaHigh, vbHigh) - System.Numerics.Vector.Min(vaHigh, vbHigh);
+
+                            var sqLow = diffLow * diffLow;
+                            var sqHigh = diffHigh * diffHigh;
+
+                            System.Numerics.Vector.Widen(sqLow, out var sLow1, out var sLow2);
+                            System.Numerics.Vector.Widen(sqHigh, out var sHigh1, out var sHigh2);
+
+                            vSumInt += System.Numerics.Vector.AsVectorInt32(sLow1);
+                            vSumInt += System.Numerics.Vector.AsVectorInt32(sLow2);
+                            vSumInt += System.Numerics.Vector.AsVectorInt32(sHigh1);
+                            vSumInt += System.Numerics.Vector.AsVectorInt32(sHigh2);
+                        }
+                        // Block 2
+                        {
+                            var va = *(System.Numerics.Vector<byte>*)(pA + i + vectorCount);
+                            var vb = *(System.Numerics.Vector<byte>*)(pB + i + vectorCount);
+                            System.Numerics.Vector.Widen(va, out var vaLow, out var vaHigh);
+                            System.Numerics.Vector.Widen(vb, out var vbLow, out var vbHigh);
+                            var diffLow = System.Numerics.Vector.Max(vaLow, vbLow) - System.Numerics.Vector.Min(vaLow, vbLow);
+                            var diffHigh = System.Numerics.Vector.Max(vaHigh, vbHigh) - System.Numerics.Vector.Min(vaHigh, vbHigh);
+                            var sqLow = diffLow * diffLow;
+                            var sqHigh = diffHigh * diffHigh;
+                            System.Numerics.Vector.Widen(sqLow, out var sLow1, out var sLow2);
+                            System.Numerics.Vector.Widen(sqHigh, out var sHigh1, out var sHigh2);
+                            vSumInt += System.Numerics.Vector.AsVectorInt32(sLow1);
+                            vSumInt += System.Numerics.Vector.AsVectorInt32(sLow2);
+                            vSumInt += System.Numerics.Vector.AsVectorInt32(sHigh1);
+                            vSumInt += System.Numerics.Vector.AsVectorInt32(sHigh2);
+                        }
+                        // Block 3
+                        {
+                            var va = *(System.Numerics.Vector<byte>*)(pA + i + vectorCount * 2);
+                            var vb = *(System.Numerics.Vector<byte>*)(pB + i + vectorCount * 2);
+                            System.Numerics.Vector.Widen(va, out var vaLow, out var vaHigh);
+                            System.Numerics.Vector.Widen(vb, out var vbLow, out var vbHigh);
+                            var diffLow = System.Numerics.Vector.Max(vaLow, vbLow) - System.Numerics.Vector.Min(vaLow, vbLow);
+                            var diffHigh = System.Numerics.Vector.Max(vaHigh, vbHigh) - System.Numerics.Vector.Min(vaHigh, vbHigh);
+                            var sqLow = diffLow * diffLow;
+                            var sqHigh = diffHigh * diffHigh;
+                            System.Numerics.Vector.Widen(sqLow, out var sLow1, out var sLow2);
+                            System.Numerics.Vector.Widen(sqHigh, out var sHigh1, out var sHigh2);
+                            vSumInt += System.Numerics.Vector.AsVectorInt32(sLow1);
+                            vSumInt += System.Numerics.Vector.AsVectorInt32(sLow2);
+                            vSumInt += System.Numerics.Vector.AsVectorInt32(sHigh1);
+                            vSumInt += System.Numerics.Vector.AsVectorInt32(sHigh2);
+                        }
+                        // Block 4
+                        {
+                            var va = *(System.Numerics.Vector<byte>*)(pA + i + vectorCount * 3);
+                            var vb = *(System.Numerics.Vector<byte>*)(pB + i + vectorCount * 3);
+                            System.Numerics.Vector.Widen(va, out var vaLow, out var vaHigh);
+                            System.Numerics.Vector.Widen(vb, out var vbLow, out var vbHigh);
+                            var diffLow = System.Numerics.Vector.Max(vaLow, vbLow) - System.Numerics.Vector.Min(vaLow, vbLow);
+                            var diffHigh = System.Numerics.Vector.Max(vaHigh, vbHigh) - System.Numerics.Vector.Min(vaHigh, vbHigh);
+                            var sqLow = diffLow * diffLow;
+                            var sqHigh = diffHigh * diffHigh;
+                            System.Numerics.Vector.Widen(sqLow, out var sLow1, out var sLow2);
+                            System.Numerics.Vector.Widen(sqHigh, out var sHigh1, out var sHigh2);
+                            vSumInt += System.Numerics.Vector.AsVectorInt32(sLow1);
+                            vSumInt += System.Numerics.Vector.AsVectorInt32(sLow2);
+                            vSumInt += System.Numerics.Vector.AsVectorInt32(sHigh1);
+                            vSumInt += System.Numerics.Vector.AsVectorInt32(sHigh2);
+                        }
+
+                        i += stride;
+                    }
+
+                    // Handle Clean-up (single vectors)
+                    while (i <= length - vectorCount)
+                    {
+                        var va = *(System.Numerics.Vector<byte>*)(pA + i);
+                        var vb = *(System.Numerics.Vector<byte>*)(pB + i);
+                        System.Numerics.Vector.Widen(va, out var vaLow, out var vaHigh);
+                        System.Numerics.Vector.Widen(vb, out var vbLow, out var vbHigh);
+                        var diffLow = System.Numerics.Vector.Max(vaLow, vbLow) - System.Numerics.Vector.Min(vaLow, vbLow);
+                        var diffHigh = System.Numerics.Vector.Max(vaHigh, vbHigh) - System.Numerics.Vector.Min(vaHigh, vbHigh);
+                        var sqLow = diffLow * diffLow;
+                        var sqHigh = diffHigh * diffHigh;
+                        System.Numerics.Vector.Widen(sqLow, out var sLow1, out var sLow2);
+                        System.Numerics.Vector.Widen(sqHigh, out var sHigh1, out var sHigh2);
+                        vSumInt += System.Numerics.Vector.AsVectorInt32(sLow1);
+                        vSumInt += System.Numerics.Vector.AsVectorInt32(sLow2);
+                        vSumInt += System.Numerics.Vector.AsVectorInt32(sHigh1);
+                        vSumInt += System.Numerics.Vector.AsVectorInt32(sHigh2);
+                        i += vectorCount;
+                    }
+                }
+
                 sum += System.Numerics.Vector.Dot(vSumInt, System.Numerics.Vector<int>.One);
             }
 
@@ -414,99 +414,99 @@ namespace Pyrope.GarnetServer.Vector
                 fixed (byte* pA = a)
                 fixed (byte* pB = b)
                 {
-                     // Unrolled Loop (4x)
-                     while (i <= end)
-                     {
-                         // Block 1
-                         {
-                             var va = *(System.Numerics.Vector<byte>*)(pA + i);
-                             var vb = *(System.Numerics.Vector<byte>*)(pB + i);
-                             System.Numerics.Vector.Widen(va, out var vaLow, out var vaHigh);
-                             System.Numerics.Vector.Widen(vb, out var vbLow, out var vbHigh);
-                             
-                             var mulLow = vaLow * vbLow;
-                             var mulHigh = vaHigh * vbHigh;
-                             
-                             System.Numerics.Vector.Widen(mulLow, out var sLow1, out var sLow2); 
-                             System.Numerics.Vector.Widen(mulHigh, out var sHigh1, out var sHigh2);
-                             
-                             vSumInt += System.Numerics.Vector.AsVectorInt32(sLow1);
-                             vSumInt += System.Numerics.Vector.AsVectorInt32(sLow2);
-                             vSumInt += System.Numerics.Vector.AsVectorInt32(sHigh1);
-                             vSumInt += System.Numerics.Vector.AsVectorInt32(sHigh2);
-                         }
-                         // Block 2
-                         {
-                             var va = *(System.Numerics.Vector<byte>*)(pA + i + vectorCount);
-                             var vb = *(System.Numerics.Vector<byte>*)(pB + i + vectorCount);
-                             System.Numerics.Vector.Widen(va, out var vaLow, out var vaHigh);
-                             System.Numerics.Vector.Widen(vb, out var vbLow, out var vbHigh);
-                             var mulLow = vaLow * vbLow;
-                             var mulHigh = vaHigh * vbHigh;
-                             System.Numerics.Vector.Widen(mulLow, out var sLow1, out var sLow2); 
-                             System.Numerics.Vector.Widen(mulHigh, out var sHigh1, out var sHigh2);
-                             vSumInt += System.Numerics.Vector.AsVectorInt32(sLow1);
-                             vSumInt += System.Numerics.Vector.AsVectorInt32(sLow2);
-                             vSumInt += System.Numerics.Vector.AsVectorInt32(sHigh1);
-                             vSumInt += System.Numerics.Vector.AsVectorInt32(sHigh2);
-                         }
-                         // Block 3
-                         {
-                             var va = *(System.Numerics.Vector<byte>*)(pA + i + vectorCount * 2);
-                             var vb = *(System.Numerics.Vector<byte>*)(pB + i + vectorCount * 2);
-                             System.Numerics.Vector.Widen(va, out var vaLow, out var vaHigh);
-                             System.Numerics.Vector.Widen(vb, out var vbLow, out var vbHigh);
-                             var mulLow = vaLow * vbLow;
-                             var mulHigh = vaHigh * vbHigh;
-                             System.Numerics.Vector.Widen(mulLow, out var sLow1, out var sLow2); 
-                             System.Numerics.Vector.Widen(mulHigh, out var sHigh1, out var sHigh2);
-                             vSumInt += System.Numerics.Vector.AsVectorInt32(sLow1);
-                             vSumInt += System.Numerics.Vector.AsVectorInt32(sLow2);
-                             vSumInt += System.Numerics.Vector.AsVectorInt32(sHigh1);
-                             vSumInt += System.Numerics.Vector.AsVectorInt32(sHigh2);
-                         }
-                         // Block 4
-                         {
-                             var va = *(System.Numerics.Vector<byte>*)(pA + i + vectorCount * 3);
-                             var vb = *(System.Numerics.Vector<byte>*)(pB + i + vectorCount * 3);
-                             System.Numerics.Vector.Widen(va, out var vaLow, out var vaHigh);
-                             System.Numerics.Vector.Widen(vb, out var vbLow, out var vbHigh);
-                             var mulLow = vaLow * vbLow;
-                             var mulHigh = vaHigh * vbHigh;
-                             System.Numerics.Vector.Widen(mulLow, out var sLow1, out var sLow2); 
-                             System.Numerics.Vector.Widen(mulHigh, out var sHigh1, out var sHigh2);
-                             vSumInt += System.Numerics.Vector.AsVectorInt32(sLow1);
-                             vSumInt += System.Numerics.Vector.AsVectorInt32(sLow2);
-                             vSumInt += System.Numerics.Vector.AsVectorInt32(sHigh1);
-                             vSumInt += System.Numerics.Vector.AsVectorInt32(sHigh2);
-                         }
-                         
-                         i += stride;
-                     }
-                     
-                     // Handle Clean-up (single vectors)
-                     while (i <= length - vectorCount)
-                     {
-                         var va = *(System.Numerics.Vector<byte>*)(pA + i);
-                         var vb = *(System.Numerics.Vector<byte>*)(pB + i);
-                         System.Numerics.Vector.Widen(va, out var vaLow, out var vaHigh);
-                         System.Numerics.Vector.Widen(vb, out var vbLow, out var vbHigh);
-                         var mulLow = vaLow * vbLow; 
-                         var mulHigh = vaHigh * vbHigh;
-                         System.Numerics.Vector.Widen(mulLow, out var sLow1, out var sLow2); 
-                         System.Numerics.Vector.Widen(mulHigh, out var sHigh1, out var sHigh2);
-                         vSumInt += System.Numerics.Vector.AsVectorInt32(sLow1);
-                         vSumInt += System.Numerics.Vector.AsVectorInt32(sLow2);
-                         vSumInt += System.Numerics.Vector.AsVectorInt32(sHigh1);
-                         vSumInt += System.Numerics.Vector.AsVectorInt32(sHigh2);
-                         i += vectorCount;
-                     }
+                    // Unrolled Loop (4x)
+                    while (i <= end)
+                    {
+                        // Block 1
+                        {
+                            var va = *(System.Numerics.Vector<byte>*)(pA + i);
+                            var vb = *(System.Numerics.Vector<byte>*)(pB + i);
+                            System.Numerics.Vector.Widen(va, out var vaLow, out var vaHigh);
+                            System.Numerics.Vector.Widen(vb, out var vbLow, out var vbHigh);
+
+                            var mulLow = vaLow * vbLow;
+                            var mulHigh = vaHigh * vbHigh;
+
+                            System.Numerics.Vector.Widen(mulLow, out var sLow1, out var sLow2);
+                            System.Numerics.Vector.Widen(mulHigh, out var sHigh1, out var sHigh2);
+
+                            vSumInt += System.Numerics.Vector.AsVectorInt32(sLow1);
+                            vSumInt += System.Numerics.Vector.AsVectorInt32(sLow2);
+                            vSumInt += System.Numerics.Vector.AsVectorInt32(sHigh1);
+                            vSumInt += System.Numerics.Vector.AsVectorInt32(sHigh2);
+                        }
+                        // Block 2
+                        {
+                            var va = *(System.Numerics.Vector<byte>*)(pA + i + vectorCount);
+                            var vb = *(System.Numerics.Vector<byte>*)(pB + i + vectorCount);
+                            System.Numerics.Vector.Widen(va, out var vaLow, out var vaHigh);
+                            System.Numerics.Vector.Widen(vb, out var vbLow, out var vbHigh);
+                            var mulLow = vaLow * vbLow;
+                            var mulHigh = vaHigh * vbHigh;
+                            System.Numerics.Vector.Widen(mulLow, out var sLow1, out var sLow2);
+                            System.Numerics.Vector.Widen(mulHigh, out var sHigh1, out var sHigh2);
+                            vSumInt += System.Numerics.Vector.AsVectorInt32(sLow1);
+                            vSumInt += System.Numerics.Vector.AsVectorInt32(sLow2);
+                            vSumInt += System.Numerics.Vector.AsVectorInt32(sHigh1);
+                            vSumInt += System.Numerics.Vector.AsVectorInt32(sHigh2);
+                        }
+                        // Block 3
+                        {
+                            var va = *(System.Numerics.Vector<byte>*)(pA + i + vectorCount * 2);
+                            var vb = *(System.Numerics.Vector<byte>*)(pB + i + vectorCount * 2);
+                            System.Numerics.Vector.Widen(va, out var vaLow, out var vaHigh);
+                            System.Numerics.Vector.Widen(vb, out var vbLow, out var vbHigh);
+                            var mulLow = vaLow * vbLow;
+                            var mulHigh = vaHigh * vbHigh;
+                            System.Numerics.Vector.Widen(mulLow, out var sLow1, out var sLow2);
+                            System.Numerics.Vector.Widen(mulHigh, out var sHigh1, out var sHigh2);
+                            vSumInt += System.Numerics.Vector.AsVectorInt32(sLow1);
+                            vSumInt += System.Numerics.Vector.AsVectorInt32(sLow2);
+                            vSumInt += System.Numerics.Vector.AsVectorInt32(sHigh1);
+                            vSumInt += System.Numerics.Vector.AsVectorInt32(sHigh2);
+                        }
+                        // Block 4
+                        {
+                            var va = *(System.Numerics.Vector<byte>*)(pA + i + vectorCount * 3);
+                            var vb = *(System.Numerics.Vector<byte>*)(pB + i + vectorCount * 3);
+                            System.Numerics.Vector.Widen(va, out var vaLow, out var vaHigh);
+                            System.Numerics.Vector.Widen(vb, out var vbLow, out var vbHigh);
+                            var mulLow = vaLow * vbLow;
+                            var mulHigh = vaHigh * vbHigh;
+                            System.Numerics.Vector.Widen(mulLow, out var sLow1, out var sLow2);
+                            System.Numerics.Vector.Widen(mulHigh, out var sHigh1, out var sHigh2);
+                            vSumInt += System.Numerics.Vector.AsVectorInt32(sLow1);
+                            vSumInt += System.Numerics.Vector.AsVectorInt32(sLow2);
+                            vSumInt += System.Numerics.Vector.AsVectorInt32(sHigh1);
+                            vSumInt += System.Numerics.Vector.AsVectorInt32(sHigh2);
+                        }
+
+                        i += stride;
+                    }
+
+                    // Handle Clean-up (single vectors)
+                    while (i <= length - vectorCount)
+                    {
+                        var va = *(System.Numerics.Vector<byte>*)(pA + i);
+                        var vb = *(System.Numerics.Vector<byte>*)(pB + i);
+                        System.Numerics.Vector.Widen(va, out var vaLow, out var vaHigh);
+                        System.Numerics.Vector.Widen(vb, out var vbLow, out var vbHigh);
+                        var mulLow = vaLow * vbLow;
+                        var mulHigh = vaHigh * vbHigh;
+                        System.Numerics.Vector.Widen(mulLow, out var sLow1, out var sLow2);
+                        System.Numerics.Vector.Widen(mulHigh, out var sHigh1, out var sHigh2);
+                        vSumInt += System.Numerics.Vector.AsVectorInt32(sLow1);
+                        vSumInt += System.Numerics.Vector.AsVectorInt32(sLow2);
+                        vSumInt += System.Numerics.Vector.AsVectorInt32(sHigh1);
+                        vSumInt += System.Numerics.Vector.AsVectorInt32(sHigh2);
+                        i += vectorCount;
+                    }
                 }
-                
+
                 sum += System.Numerics.Vector.Dot(vSumInt, System.Numerics.Vector<int>.One);
             }
 
-             for (; i < length; i++)
+            for (; i < length; i++)
             {
                 sum += a[i] * b[i];
             }

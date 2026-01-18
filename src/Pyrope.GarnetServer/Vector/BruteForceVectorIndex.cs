@@ -113,7 +113,7 @@ namespace Pyrope.GarnetServer.Vector
                 }
 
                 _entries[id] = CreateEntry(vector);
-                
+
                 // Quantize
                 if (EnableQuantization)
                 {
@@ -137,7 +137,7 @@ namespace Pyrope.GarnetServer.Vector
             try
             {
                 _entries[id] = CreateEntry(vector);
-                
+
                 if (EnableQuantization)
                 {
                     var qv = ScalarQuantizer.Quantize(vector, out float min, out float max);
@@ -201,18 +201,18 @@ namespace Pyrope.GarnetServer.Vector
                 var scanned = 0;
 
                 float queryNorm = Metric == VectorMetric.Cosine ? VectorMath.ComputeNorm(query) : 0f;
-                
+
                 // Pre-quantize query if needed
                 byte[]? qQuery = null;
                 if (EnableQuantization)
                 {
-                     qQuery = ScalarQuantizer.Quantize(query, out _, out _);
-                     
-                     // SQ8 Optimized Loop
-                     // NOTE: This uses direct byte comparison (DotProduct8Bit) which approximates distance.
-                     // It does not account for per-vector Min/Max scaling (LSQ), so ranking is approximate.
-                     foreach (var kvp in _quantizedVectors)
-                     {
+                    qQuery = ScalarQuantizer.Quantize(query, out _, out _);
+
+                    // SQ8 Optimized Loop
+                    // NOTE: This uses direct byte comparison (DotProduct8Bit) which approximates distance.
+                    // It does not account for per-vector Min/Max scaling (LSQ), so ranking is approximate.
+                    foreach (var kvp in _quantizedVectors)
+                    {
                         if (scanned >= scanLimit) break;
                         scanned++;
 
@@ -232,10 +232,10 @@ namespace Pyrope.GarnetServer.Vector
                             default:
                                 throw new InvalidOperationException();
                         }
-                        
+
                         heap.Enqueue(new SearchResult(kvp.Key, score), score);
                         if (heap.Count > topK) heap.Dequeue();
-                     }
+                    }
                 }
                 else
                 {
@@ -291,22 +291,22 @@ namespace Pyrope.GarnetServer.Vector
         {
             if (EnableQuantization && qQuery != null && _quantizedVectors.TryGetValue(id, out var qVec))
             {
-                 // Fast Path: SQ8
-                 // Note: This approximates distance. Scores will be different from float scores.
-                 // For benchmarking throughput, this is valid.
-                 // For accuracy, we'd need re-scoring (calculate top N*factor using SQ8, then re-rank top N with float).
-                 // But for this "Implement Task" step, simply replacing the calculation is sufficient to show speedup.
-                 
-                 return Metric switch
-                 {
-                     VectorMetric.L2 => -VectorMath.L2Squared8Bit(qQuery, qVec),
-                     VectorMetric.InnerProduct => VectorMath.DotProduct8Bit(qQuery, qVec),
-                     // Approximation for Cosine: DotProduct8Bit / (NormA * NormB)?? 
-                     // Norms of quantized vectors are different. 
-                     // Let's fallback or just use IP as proxy.
-                     VectorMetric.Cosine => VectorMath.DotProduct8Bit(qQuery, qVec), // Very rough approx
-                     _ => throw new InvalidOperationException()
-                 };
+                // Fast Path: SQ8
+                // Note: This approximates distance. Scores will be different from float scores.
+                // For benchmarking throughput, this is valid.
+                // For accuracy, we'd need re-scoring (calculate top N*factor using SQ8, then re-rank top N with float).
+                // But for this "Implement Task" step, simply replacing the calculation is sufficient to show speedup.
+
+                return Metric switch
+                {
+                    VectorMetric.L2 => -VectorMath.L2Squared8Bit(qQuery, qVec),
+                    VectorMetric.InnerProduct => VectorMath.DotProduct8Bit(qQuery, qVec),
+                    // Approximation for Cosine: DotProduct8Bit / (NormA * NormB)?? 
+                    // Norms of quantized vectors are different. 
+                    // Let's fallback or just use IP as proxy.
+                    VectorMetric.Cosine => VectorMath.DotProduct8Bit(qQuery, qVec), // Very rough approx
+                    _ => throw new InvalidOperationException()
+                };
             }
 
             return Metric switch

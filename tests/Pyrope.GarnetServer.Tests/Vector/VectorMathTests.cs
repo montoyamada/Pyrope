@@ -134,7 +134,7 @@ namespace Pyrope.GarnetServer.Tests.Vector
         {
             var a = new byte[] { 10, 20, 255 };
             var b = new byte[] { 12, 18, 250 };
-            
+
             // Diff: -2, 2, 5
             // Sq: 4, 4, 25 => Sum 33
             long expected = 33;
@@ -147,7 +147,7 @@ namespace Pyrope.GarnetServer.Tests.Vector
         {
             var a = new byte[] { 10, 5, 2 };
             var b = new byte[] { 2, 4, 100 };
-            
+
             // 20 + 20 + 200 = 240
             long expected = 240;
             long actual = VectorMath.DotProduct8Bit(a, b);
