@@ -91,7 +91,11 @@ namespace Pyrope.GarnetServer.Services
                 return Array.Empty<BillingLogEntry>();
             }
 
-            var entries = state.Entries.ToArray();
+            BillingLogEntry[] entries;
+            lock (state.Sync)
+            {
+                entries = state.Entries.ToArray();
+            }
             return entries
                 .OrderByDescending(e => e.Timestamp)
                 .Take(limit)
@@ -106,7 +110,11 @@ namespace Pyrope.GarnetServer.Services
                 return true;
             }
 
-            var entries = state.Entries.ToArray();
+            BillingLogEntry[] entries;
+            lock (state.Sync)
+            {
+                entries = state.Entries.ToArray();
+            }
             var prevHash = GenesisHash;
 
             foreach (var entry in entries)
