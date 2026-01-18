@@ -42,5 +42,29 @@ namespace Pyrope.GarnetServer.Tests.Vector
             var reconstructed = ScalarQuantizer.Dequantize(quantized, min, max);
             Assert.All(reconstructed, f => Assert.Equal(0.5f, f));
         }
+
+        [Fact]
+        public void Quantize_SpanOverload_Works()
+        {
+            var original = new float[] { 0.0f, 1.0f };
+            var dest = new byte[2];
+
+            ScalarQuantizer.Quantize(original.AsSpan(), dest.AsSpan(), out float min, out float max);
+
+            Assert.Equal(0.0f, min);
+            Assert.Equal(1.0f, max);
+            // 0 -> 0, 1 -> 255
+            Assert.Equal(0, dest[0]);
+            Assert.Equal(255, dest[1]);
+        }
+
+        [Fact]
+        public void Quantize_SpanOverload_ThrowsOnLengthMismatch()
+        {
+            var original = new float[2];
+            var dest = new byte[3];
+
+            Assert.Throws<ArgumentException>(() => ScalarQuantizer.Quantize(original.AsSpan(), dest.AsSpan(), out _, out _));
+        }
     }
 }

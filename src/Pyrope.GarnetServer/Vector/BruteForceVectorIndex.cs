@@ -1,4 +1,5 @@
 using System;
+using System.Buffers;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
@@ -7,8 +8,21 @@ namespace Pyrope.GarnetServer.Vector
 {
     public class BruteForceVectorIndex : IVectorIndex
     {
-        private readonly Dictionary<string, VectorEntry> _entries = new();
+        // Dense Index Mapping (P10-12)
+        // Nullable entries to support GC reclamation on delete
+        private readonly List<VectorEntry?> _vectors = new();
+        private readonly List<string> _ids = new();
+        private readonly Dictionary<string, int> _idMap = new();
+        private readonly List<bool> _isDeleted = new();
+
+        // Quantized Data (P10-12)
+        // Nullable byte arrays for GC reclamation
+        private readonly List<byte[]?> _quantizedVectors = new();
+        private readonly List<(float Min, float Max)> _quantizationParams = new();
+
         private readonly ReaderWriterLockSlim _lock = new();
+
+        public bool EnableQuantization { get; set; } = false;
 
         public BruteForceVectorIndex(int dimension, VectorMetric metric)
         {
@@ -24,25 +38,23 @@ namespace Pyrope.GarnetServer.Vector
         public int Dimension { get; }
         public VectorMetric Metric { get; }
 
-        public void Build()
-        {
-            // No-op for BruteForce
-        }
+        public void Build() { }
 
         public void Snapshot(string path)
         {
-            if (string.IsNullOrWhiteSpace(path))
-            {
-                throw new ArgumentException("Path cannot be empty.", nameof(path));
-            }
+            if (string.IsNullOrWhiteSpace(path)) throw new ArgumentException("Path cannot be empty.", nameof(path));
 
             _lock.EnterReadLock();
             try
             {
-                var dto = new Dictionary<string, VectorEntryDto>(_entries.Count);
-                foreach (var kvp in _entries)
+                var dto = new Dictionary<string, VectorEntryDto>(_vectors.Count);
+                for (int i = 0; i < _vectors.Count; i++)
                 {
-                    dto[kvp.Key] = new VectorEntryDto { Vector = kvp.Value.Vector, Norm = kvp.Value.Norm };
+                    if (_isDeleted[i]) continue;
+                    var entry = _vectors[i];
+                    if (entry == null) continue; // Should effectively match isDeleted
+
+                    dto[_ids[i]] = new VectorEntryDto { Vector = entry.Vector, Norm = entry.Norm };
                 }
                 var json = System.Text.Json.JsonSerializer.Serialize(dto);
                 System.IO.File.WriteAllText(path, json);
@@ -55,15 +67,8 @@ namespace Pyrope.GarnetServer.Vector
 
         public void Load(string path)
         {
-            if (string.IsNullOrWhiteSpace(path))
-            {
-                throw new ArgumentException("Path cannot be empty.", nameof(path));
-            }
-
-            if (!System.IO.File.Exists(path))
-            {
-                throw new System.IO.FileNotFoundException("Snapshot file not found.", path);
-            }
+            if (string.IsNullOrWhiteSpace(path)) throw new ArgumentException("Path cannot be empty.", nameof(path));
+            if (!System.IO.File.Exists(path)) throw new System.IO.FileNotFoundException("Snapshot file not found.", path);
 
             var json = System.IO.File.ReadAllText(path);
             var dto = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, VectorEntryDto>>(json);
@@ -73,10 +78,10 @@ namespace Pyrope.GarnetServer.Vector
                 _lock.EnterWriteLock();
                 try
                 {
-                    _entries.Clear();
+                    Clear();
                     foreach (var kvp in dto)
                     {
-                        _entries.Add(kvp.Key, new VectorEntry(kvp.Value.Vector, kvp.Value.Norm));
+                        InternalAdd(kvp.Key, kvp.Value.Vector, kvp.Value.Norm);
                     }
                 }
                 finally
@@ -86,12 +91,23 @@ namespace Pyrope.GarnetServer.Vector
             }
         }
 
+        private void Clear()
+        {
+            _vectors.Clear();
+            _ids.Clear();
+            _idMap.Clear();
+            _isDeleted.Clear();
+            _quantizedVectors.Clear();
+            _quantizationParams.Clear();
+        }
+
         public IndexStats GetStats()
         {
             _lock.EnterReadLock();
             try
             {
-                return new IndexStats(_entries.Count, Dimension, Metric.ToString());
+                int activeCount = _idMap.Count;
+                return new IndexStats(activeCount, Dimension, Metric.ToString());
             }
             finally
             {
@@ -107,24 +123,43 @@ namespace Pyrope.GarnetServer.Vector
             _lock.EnterWriteLock();
             try
             {
-                if (_entries.ContainsKey(id))
+                if (_idMap.ContainsKey(id))
                 {
                     throw new InvalidOperationException($"Vector with id '{id}' already exists.");
                 }
 
-                _entries[id] = CreateEntry(vector);
+                float norm = Metric == VectorMetric.Cosine ? VectorMath.ComputeNorm(vector) : 0f;
+                var vecCopy = new float[vector.Length];
+                Array.Copy(vector, vecCopy, vector.Length);
 
-                // Quantize
-                if (EnableQuantization)
-                {
-                    var qv = ScalarQuantizer.Quantize(vector, out float min, out float max);
-                    _quantizedVectors[id] = qv;
-                    _quantizationParams[id] = (min, max);
-                }
+                InternalAdd(id, vecCopy, norm);
             }
             finally
             {
                 _lock.ExitWriteLock();
+            }
+        }
+
+        private void InternalAdd(string id, float[] vector, float norm)
+        {
+            int index = _vectors.Count;
+
+            _idMap.Add(id, index);
+            _ids.Add(id);
+            _vectors.Add(new VectorEntry(vector, norm));
+            _isDeleted.Add(false);
+
+            if (EnableQuantization)
+            {
+                var qv = ScalarQuantizer.Quantize(vector, out float min, out float max);
+                _quantizedVectors.Add(qv);
+                _quantizationParams.Add((min, max));
+            }
+            else
+            {
+                // Consistent initialization
+                _quantizedVectors.Add(Array.Empty<byte>());
+                _quantizationParams.Add(default);
             }
         }
 
@@ -136,13 +171,33 @@ namespace Pyrope.GarnetServer.Vector
             _lock.EnterWriteLock();
             try
             {
-                _entries[id] = CreateEntry(vector);
+                float norm = Metric == VectorMetric.Cosine ? VectorMath.ComputeNorm(vector) : 0f;
+                var vecCopy = new float[vector.Length];
+                Array.Copy(vector, vecCopy, vector.Length);
 
-                if (EnableQuantization)
+                if (_idMap.TryGetValue(id, out int index))
                 {
-                    var qv = ScalarQuantizer.Quantize(vector, out float min, out float max);
-                    _quantizedVectors[id] = qv;
-                    _quantizationParams[id] = (min, max);
+                    // Update existing
+                    _vectors[index] = new VectorEntry(vecCopy, norm);
+                    _isDeleted[index] = false;
+
+                    // Fix: Always update quantized state to avoid stale data
+                    if (EnableQuantization)
+                    {
+                        var qv = ScalarQuantizer.Quantize(vector, out float min, out float max);
+                        _quantizedVectors[index] = qv;
+                        _quantizationParams[index] = (min, max);
+                    }
+                    else
+                    {
+                        // Reset to empty if disabled, ensuring consistency
+                        _quantizedVectors[index] = Array.Empty<byte>();
+                        _quantizationParams[index] = default;
+                    }
+                }
+                else
+                {
+                    InternalAdd(id, vecCopy, norm);
                 }
             }
             finally
@@ -158,9 +213,18 @@ namespace Pyrope.GarnetServer.Vector
             _lock.EnterWriteLock();
             try
             {
-                _quantizedVectors.Remove(id);
-                _quantizationParams.Remove(id);
-                return _entries.Remove(id);
+                if (_idMap.TryGetValue(id, out int index))
+                {
+                    _isDeleted[index] = true;
+                    _idMap.Remove(id);
+
+                    // Fix: Clear references to allow GC
+                    _vectors[index] = null;
+                    _quantizedVectors[index] = null;
+
+                    return true;
+                }
+                return false;
             }
             finally
             {
@@ -173,7 +237,19 @@ namespace Pyrope.GarnetServer.Vector
             _lock.EnterReadLock();
             try
             {
-                return _entries.Select(kvp => new KeyValuePair<string, float[]>(kvp.Key, kvp.Value.Vector)).ToList();
+                var list = new List<KeyValuePair<string, float[]>>(_idMap.Count);
+                for (int i = 0; i < _vectors.Count; i++)
+                {
+                    if (!_isDeleted[i])
+                    {
+                        var v = _vectors[i];
+                        if (v != null)
+                        {
+                            list.Add(new KeyValuePair<string, float[]>(_ids[i], v.Vector));
+                        }
+                    }
+                }
+                return list;
             }
             finally
             {
@@ -187,68 +263,91 @@ namespace Pyrope.GarnetServer.Vector
             if (topK <= 0) throw new ArgumentOutOfRangeException(nameof(topK), "topK must be positive.");
 
             var maxScans = options?.MaxScans;
-            if (maxScans.HasValue && maxScans.Value <= 0) return Array.Empty<SearchResult>();
 
             _lock.EnterReadLock();
             try
             {
-                if (_entries.Count == 0) return Array.Empty<SearchResult>();
+                int count = _vectors.Count;
+                if (count == 0) return Array.Empty<SearchResult>();
 
-                var scanLimit = maxScans.HasValue ? Math.Min(maxScans.Value, _entries.Count) : _entries.Count;
+                int scanLimit = maxScans.HasValue ? Math.Min(maxScans.Value, count) : count;
                 if (scanLimit <= 0) return Array.Empty<SearchResult>();
 
                 var heap = new PriorityQueue<SearchResult, float>();
-                var scanned = 0;
+                int scanned = 0;
 
-                float queryNorm = Metric == VectorMetric.Cosine ? VectorMath.ComputeNorm(query) : 0f;
-
-                // Pre-quantize query if needed
-                byte[]? qQuery = null;
-                if (EnableQuantization)
+                byte[]? qQueryBuffer = null;
+                try
                 {
-                    qQuery = ScalarQuantizer.Quantize(query, out _, out _);
-
-                    // SQ8 Optimized Loop
-                    // NOTE: This uses direct byte comparison (DotProduct8Bit) which approximates distance.
-                    // It does not account for per-vector Min/Max scaling (LSQ), so ranking is approximate.
-                    foreach (var kvp in _quantizedVectors)
+                    if (EnableQuantization)
                     {
-                        if (scanned >= scanLimit) break;
-                        scanned++;
+                        // P10-11: Rent from pool
+                        qQueryBuffer = ArrayPool<byte>.Shared.Rent(Dimension);
+                        // Slice strictly to Dimension
+                        Span<byte> qQuerySpan = qQueryBuffer.AsSpan(0, Dimension);
 
-                        float score;
-                        switch (Metric)
+                        ScalarQuantizer.Quantize(query, qQuerySpan, out _, out _);
+
+                        // Optimized Loop P10-12
+                        for (int i = 0; i < count; i++)
                         {
-                            case VectorMetric.L2:
-                                score = -VectorMath.L2Squared8Bit(qQuery, kvp.Value);
-                                break;
-                            case VectorMetric.InnerProduct:
-                                score = VectorMath.DotProduct8Bit(qQuery, kvp.Value);
-                                break;
-                            case VectorMetric.Cosine:
-                                // Rough approximation
-                                score = VectorMath.DotProduct8Bit(qQuery, kvp.Value);
-                                break;
-                            default:
-                                throw new InvalidOperationException();
-                        }
+                            if (_isDeleted[i]) continue;
+                            if (scanned >= scanLimit) break;
+                            scanned++;
 
-                        heap.Enqueue(new SearchResult(kvp.Key, score), score);
-                        if (heap.Count > topK) heap.Dequeue();
+                            var qTarget = _quantizedVectors[i];
+
+                            // Check for validity (might be null if deleted or empty if added when disabled)
+                            if (qTarget == null || qTarget.Length == 0) continue;
+
+                            // Fix: Use Span overload passing sliced query and target
+                            // qTarget should technically be Dimension length if valid
+                            ReadOnlySpan<byte> targetSpan = new ReadOnlySpan<byte>(qTarget);
+
+                            // Safety check for target length (though InternalAdd guarantees correctness)
+                            if (targetSpan.Length != Dimension) continue;
+
+                            float score = Metric switch
+                            {
+                                VectorMetric.L2 => -VectorMath.L2Squared8Bit(qQuerySpan, targetSpan),
+                                VectorMetric.InnerProduct => VectorMath.DotProduct8Bit(qQuerySpan, targetSpan),
+                                VectorMetric.Cosine => VectorMath.DotProduct8Bit(qQuerySpan, targetSpan),
+                                _ => throw new InvalidOperationException()
+                            };
+
+                            heap.Enqueue(new SearchResult(_ids[i], score), score);
+                            if (heap.Count > topK) heap.Dequeue();
+                        }
+                    }
+                    else
+                    {
+                        float queryNorm = Metric == VectorMetric.Cosine ? VectorMath.ComputeNorm(query) : 0f;
+
+                        for (int i = 0; i < count; i++)
+                        {
+                            if (_isDeleted[i]) continue;
+                            if (scanned >= scanLimit) break;
+                            scanned++;
+
+                            var entry = _vectors[i];
+                            if (entry == null) continue;
+
+                            float score = Metric switch
+                            {
+                                VectorMetric.L2 => -VectorMath.L2SquaredUnsafe(query, entry.Vector),
+                                VectorMetric.InnerProduct => VectorMath.DotProductUnsafe(query, entry.Vector),
+                                VectorMetric.Cosine => (queryNorm < 1e-6f || entry.Norm < 1e-6f) ? 0f : VectorMath.DotProductUnsafe(query, entry.Vector) / (queryNorm * entry.Norm),
+                                _ => throw new InvalidOperationException()
+                            };
+
+                            heap.Enqueue(new SearchResult(_ids[i], score), score);
+                            if (heap.Count > topK) heap.Dequeue();
+                        }
                     }
                 }
-                else
+                finally
                 {
-                    // Standard Float Loop
-                    foreach (var entry in _entries)
-                    {
-                        if (scanned >= scanLimit) break;
-                        scanned++;
-
-                        var score = ComputeScore(query, entry.Value, queryNorm, entry.Key, null);
-                        heap.Enqueue(new SearchResult(entry.Key, score), score);
-                        if (heap.Count > topK) heap.Dequeue();
-                    }
+                    if (qQueryBuffer != null) ArrayPool<byte>.Shared.Return(qQueryBuffer);
                 }
 
                 if (heap.Count == 0) return Array.Empty<SearchResult>();
@@ -273,49 +372,6 @@ namespace Pyrope.GarnetServer.Vector
         private static void ValidateId(string id)
         {
             if (string.IsNullOrWhiteSpace(id)) throw new ArgumentException("Id cannot be empty.", nameof(id));
-        }
-
-        private VectorEntry CreateEntry(float[] vector)
-        {
-            var copy = new float[vector.Length];
-            Array.Copy(vector, copy, vector.Length);
-            var norm = Metric == VectorMetric.Cosine ? VectorMath.ComputeNorm(copy) : 0f;
-            return new VectorEntry(copy, norm);
-        }
-
-        private readonly Dictionary<string, byte[]> _quantizedVectors = new();
-        private readonly Dictionary<string, (float Min, float Max)> _quantizationParams = new();
-        public bool EnableQuantization { get; set; } = false;
-
-        private float ComputeScore(float[] query, VectorEntry entry, float queryNorm, string id, byte[]? qQuery)
-        {
-            if (EnableQuantization && qQuery != null && _quantizedVectors.TryGetValue(id, out var qVec))
-            {
-                // Fast Path: SQ8
-                // Note: This approximates distance. Scores will be different from float scores.
-                // For benchmarking throughput, this is valid.
-                // For accuracy, we'd need re-scoring (calculate top N*factor using SQ8, then re-rank top N with float).
-                // But for this "Implement Task" step, simply replacing the calculation is sufficient to show speedup.
-
-                return Metric switch
-                {
-                    VectorMetric.L2 => -VectorMath.L2Squared8Bit(qQuery, qVec),
-                    VectorMetric.InnerProduct => VectorMath.DotProduct8Bit(qQuery, qVec),
-                    // Approximation for Cosine: DotProduct8Bit / (NormA * NormB)?? 
-                    // Norms of quantized vectors are different. 
-                    // Let's fallback or just use IP as proxy.
-                    VectorMetric.Cosine => VectorMath.DotProduct8Bit(qQuery, qVec), // Very rough approx
-                    _ => throw new InvalidOperationException()
-                };
-            }
-
-            return Metric switch
-            {
-                VectorMetric.L2 => -VectorMath.L2SquaredUnsafe(query, entry.Vector),
-                VectorMetric.InnerProduct => VectorMath.DotProductUnsafe(query, entry.Vector),
-                VectorMetric.Cosine => (queryNorm < 1e-6f || entry.Norm < 1e-6f) ? 0f : VectorMath.DotProductUnsafe(query, entry.Vector) / (queryNorm * entry.Norm),
-                _ => throw new InvalidOperationException("Unsupported metric.")
-            };
         }
 
         private sealed record VectorEntry(float[] Vector, float Norm);
