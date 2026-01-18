@@ -14,6 +14,25 @@ namespace Pyrope.GarnetServer.Vector
                 return Array.Empty<byte>();
             }
 
+            var quantized = new byte[vector.Length];
+            Quantize(vector.AsSpan(), quantized.AsSpan(), out min, out max);
+            return quantized;
+        }
+
+        public static void Quantize(ReadOnlySpan<float> vector, Span<byte> destination, out float min, out float max)
+        {
+            if (vector.Length != destination.Length)
+            {
+                throw new ArgumentException("Vector and destination lengths must match.");
+            }
+            
+            if (vector.IsEmpty)
+            {
+                min = 0;
+                max = 0;
+                return;
+            }
+
             min = float.MaxValue;
             max = float.MinValue;
 
@@ -24,11 +43,11 @@ namespace Pyrope.GarnetServer.Vector
             }
 
             var range = max - min;
-            var quantized = new byte[vector.Length];
 
             if (range == 0)
             {
-                return quantized; // All zeros
+                destination.Fill(0);
+                return;
             }
 
             // Scale to 0..255
@@ -38,10 +57,8 @@ namespace Pyrope.GarnetServer.Vector
             {
                 float normalized = (vector[i] - min) * scale;
                 // Clamp and round
-                quantized[i] = (byte)Math.Clamp((int)Math.Round(normalized), 0, 255);
+                destination[i] = (byte)Math.Clamp((int)Math.Round(normalized), 0, 255);
             }
-
-            return quantized;
         }
 
         public static float[] Dequantize(byte[] quantized, float min, float max)

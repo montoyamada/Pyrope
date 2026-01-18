@@ -266,9 +266,16 @@ namespace Pyrope.GarnetServer.Vector
             if (a.Length != b.Length) throw new ArgumentException("Vector dimension mismatch");
         }
 
-        public static unsafe long L2Squared8Bit(byte[] a, byte[] b)
+        public static long L2Squared8Bit(byte[] a, byte[] b)
         {
             ValidateInput(a, b);
+            return L2Squared8Bit(new ReadOnlySpan<byte>(a), new ReadOnlySpan<byte>(b));
+        }
+
+        public static unsafe long L2Squared8Bit(ReadOnlySpan<byte> a, ReadOnlySpan<byte> b)
+        {
+            if (a.Length != b.Length) throw new ArgumentException("Vector dimension mismatch");
+            
             long sum = 0;
             int length = a.Length;
             int i = 0;
@@ -284,10 +291,8 @@ namespace Pyrope.GarnetServer.Vector
                 fixed (byte* pA = a)
                 fixed (byte* pB = b)
                 {
-                    // Unrolled Loop (4x)
                     while (i <= end)
                     {
-                        // Block 1
                         {
                             var va = *(System.Numerics.Vector<byte>*)(pA + i);
                             var vb = *(System.Numerics.Vector<byte>*)(pB + i);
@@ -308,7 +313,6 @@ namespace Pyrope.GarnetServer.Vector
                             vSumInt += System.Numerics.Vector.AsVectorInt32(sHigh1);
                             vSumInt += System.Numerics.Vector.AsVectorInt32(sHigh2);
                         }
-                        // Block 2
                         {
                             var va = *(System.Numerics.Vector<byte>*)(pA + i + vectorCount);
                             var vb = *(System.Numerics.Vector<byte>*)(pB + i + vectorCount);
@@ -325,7 +329,6 @@ namespace Pyrope.GarnetServer.Vector
                             vSumInt += System.Numerics.Vector.AsVectorInt32(sHigh1);
                             vSumInt += System.Numerics.Vector.AsVectorInt32(sHigh2);
                         }
-                        // Block 3
                         {
                             var va = *(System.Numerics.Vector<byte>*)(pA + i + vectorCount * 2);
                             var vb = *(System.Numerics.Vector<byte>*)(pB + i + vectorCount * 2);
@@ -342,7 +345,6 @@ namespace Pyrope.GarnetServer.Vector
                             vSumInt += System.Numerics.Vector.AsVectorInt32(sHigh1);
                             vSumInt += System.Numerics.Vector.AsVectorInt32(sHigh2);
                         }
-                        // Block 4
                         {
                             var va = *(System.Numerics.Vector<byte>*)(pA + i + vectorCount * 3);
                             var vb = *(System.Numerics.Vector<byte>*)(pB + i + vectorCount * 3);
@@ -363,7 +365,6 @@ namespace Pyrope.GarnetServer.Vector
                         i += stride;
                     }
 
-                    // Handle Clean-up (single vectors)
                     while (i <= length - vectorCount)
                     {
                         var va = *(System.Numerics.Vector<byte>*)(pA + i);
@@ -387,7 +388,6 @@ namespace Pyrope.GarnetServer.Vector
                 sum += System.Numerics.Vector.Dot(vSumInt, System.Numerics.Vector<int>.One);
             }
 
-            // Scalar tail
             for (; i < length; i++)
             {
                 int diff = a[i] - b[i];
@@ -397,9 +397,16 @@ namespace Pyrope.GarnetServer.Vector
             return sum;
         }
 
-        public static unsafe long DotProduct8Bit(byte[] a, byte[] b)
+        public static long DotProduct8Bit(byte[] a, byte[] b)
         {
             ValidateInput(a, b);
+            return DotProduct8Bit(new ReadOnlySpan<byte>(a), new ReadOnlySpan<byte>(b));
+        }
+
+        public static unsafe long DotProduct8Bit(ReadOnlySpan<byte> a, ReadOnlySpan<byte> b)
+        {
+            if (a.Length != b.Length) throw new ArgumentException("Vector dimension mismatch");
+
             long sum = 0;
             int length = a.Length;
             int i = 0;
@@ -414,10 +421,8 @@ namespace Pyrope.GarnetServer.Vector
                 fixed (byte* pA = a)
                 fixed (byte* pB = b)
                 {
-                    // Unrolled Loop (4x)
                     while (i <= end)
                     {
-                        // Block 1
                         {
                             var va = *(System.Numerics.Vector<byte>*)(pA + i);
                             var vb = *(System.Numerics.Vector<byte>*)(pB + i);
@@ -435,7 +440,6 @@ namespace Pyrope.GarnetServer.Vector
                             vSumInt += System.Numerics.Vector.AsVectorInt32(sHigh1);
                             vSumInt += System.Numerics.Vector.AsVectorInt32(sHigh2);
                         }
-                        // Block 2
                         {
                             var va = *(System.Numerics.Vector<byte>*)(pA + i + vectorCount);
                             var vb = *(System.Numerics.Vector<byte>*)(pB + i + vectorCount);
@@ -450,7 +454,6 @@ namespace Pyrope.GarnetServer.Vector
                             vSumInt += System.Numerics.Vector.AsVectorInt32(sHigh1);
                             vSumInt += System.Numerics.Vector.AsVectorInt32(sHigh2);
                         }
-                        // Block 3
                         {
                             var va = *(System.Numerics.Vector<byte>*)(pA + i + vectorCount * 2);
                             var vb = *(System.Numerics.Vector<byte>*)(pB + i + vectorCount * 2);
@@ -465,7 +468,6 @@ namespace Pyrope.GarnetServer.Vector
                             vSumInt += System.Numerics.Vector.AsVectorInt32(sHigh1);
                             vSumInt += System.Numerics.Vector.AsVectorInt32(sHigh2);
                         }
-                        // Block 4
                         {
                             var va = *(System.Numerics.Vector<byte>*)(pA + i + vectorCount * 3);
                             var vb = *(System.Numerics.Vector<byte>*)(pB + i + vectorCount * 3);
@@ -484,7 +486,6 @@ namespace Pyrope.GarnetServer.Vector
                         i += stride;
                     }
 
-                    // Handle Clean-up (single vectors)
                     while (i <= length - vectorCount)
                     {
                         var va = *(System.Numerics.Vector<byte>*)(pA + i);
