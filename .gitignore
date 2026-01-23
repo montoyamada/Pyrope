@@ -47,6 +47,10 @@ Generated\ Files/
 [Tt]est[Rr]esult*/
 [Bb]uild[Ll]og.*
 
+# Server Logs
+server_log*.txt
+benchmark/p10_results_*/
+
 # NUnit
 *.VisualState.xml
 TestResult.xml
