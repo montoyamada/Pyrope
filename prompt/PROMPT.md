@@ -47,7 +47,8 @@ Pyrope/
 
 ### 5. ローカル品質チェック (自動化)
 ```bash
-./scripts/check_quality.sh
+dotnet format Pyrope.sln   # フォーマット自動修正
+./scripts/check_quality.sh # テスト・Lint実行
 ```
 
 ### 6. PLAN.md の更新
@@ -165,6 +166,7 @@ docker-compose logs -f    # ログ確認
 
 - [ ] 作業ブランチが `main` から切られている（または既存の feature ブランチを継続）
 - [ ] 先にテストを書いた（TDDを意識）
+- [ ] `dotnet format` を実行してフォーマットを修正した
 - [ ] `./scripts/check_quality.sh` がパスした
 - [ ] `prompt/PLAN.md` を更新した (進捗・Currentセクション)
 - [ ] コミットメッセージが簡潔
