@@ -139,6 +139,8 @@ namespace Pyrope.GarnetServer
 
             var app = builder.Build();
 
+            app.UseDeveloperExceptionPage();
+
             app.UseForwardedHeaders(new ForwardedHeadersOptions
             {
                 ForwardedHeaders = Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedFor |

@@ -11,7 +11,6 @@ namespace Pyrope.GarnetServer.Vector
         private readonly ReaderWriterLockSlim _lock = new();
 
         // Configuration
-        private readonly int _nList; // Target number of clusters
         public int CombineNProbe { get; set; } = 3; // How many clusters to search
 
         // State - Pre-Build (Buffer)
@@ -30,11 +29,12 @@ namespace Pyrope.GarnetServer.Vector
             if (dimension <= 0) throw new ArgumentOutOfRangeException(nameof(dimension));
             Dimension = dimension;
             Metric = metric;
-            _nList = nList;
+            NList = nList;
         }
 
         public int Dimension { get; }
         public VectorMetric Metric { get; }
+        public int NList { get; }
 
         public void Add(string id, float[] vector)
         {
@@ -113,7 +113,7 @@ namespace Pyrope.GarnetServer.Vector
                 var allVectors = uniqueData.Select(x => x.Value.Vector).ToList();
 
                 // 2. Train KMeans
-                int k = Math.Min(_nList, uniqueData.Count);
+                int k = Math.Min(NList, uniqueData.Count);
                 if (k <= 0) k = 1;
 
                 var centroids = TrainKMeans(allVectors, k);
