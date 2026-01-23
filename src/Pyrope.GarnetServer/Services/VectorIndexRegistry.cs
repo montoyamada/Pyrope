@@ -1,8 +1,10 @@
 using System;
 using System.Collections.Concurrent;
 using System.Threading;
+using System.Text.Json;
 using Pyrope.GarnetServer.Vector;
 using Pyrope.GarnetServer.Utils;
+using Pyrope.GarnetServer.Model;
 
 namespace Pyrope.GarnetServer.Services
 {
@@ -10,13 +12,13 @@ namespace Pyrope.GarnetServer.Services
     {
         private readonly ConcurrentDictionary<string, IndexState> _indices = new(StringComparer.Ordinal);
 
-        public IVectorIndex GetOrCreate(string tenantId, string indexName, int dimension, VectorMetric metric)
+        public IVectorIndex GetOrCreate(string tenantId, string indexName, int dimension, VectorMetric metric, IndexConfig? config = null)
         {
             TenantNamespace.ValidateTenantId(tenantId);
             TenantNamespace.ValidateIndexName(indexName);
 
             var key = GetIndexKey(tenantId, indexName);
-            var state = _indices.GetOrAdd(key, _ => new IndexState(dimension, metric));
+            var state = _indices.GetOrAdd(key, _ => new IndexState(dimension, metric, config));
 
             if (state.Dimension != dimension)
             {
@@ -76,14 +78,44 @@ namespace Pyrope.GarnetServer.Services
         {
             private long _epoch;
 
-            public IndexState(int dimension, VectorMetric metric)
+            public IndexState(int dimension, VectorMetric metric, IndexConfig? config)
             {
                 Dimension = dimension;
                 Metric = metric;
+                
+                IVectorIndex tail;
+                string algo = config?.Algorithm?.ToUpperInvariant() ?? "IVF_FLAT"; // Default to IVF_FLAT if not specified to maintain backward compat for now
+
+                if (algo == "HNSW")
+                {
+                    int m = GetIntParam(config, "m", 16);
+                    int efConstruction = GetIntParam(config, "ef_construction", 200);
+                    int efSearch = GetIntParam(config, "ef_search", 10);
+                    tail = new HnswVectorIndex(dimension, metric, m, efConstruction, efSearch);
+                }
+                else
+                {
+                    // IVF_FLAT
+                    int nList = GetIntParam(config, "nlist", 100);
+                    tail = new IvfFlatVectorIndex(dimension, metric, nList);
+                }
+
                 // Use DeltaVectorIndex by default to exercise the new path
                 var head = new BruteForceVectorIndex(dimension, metric);
-                var tail = new IvfFlatVectorIndex(dimension, metric);
                 Index = new DeltaVectorIndex(head, tail);
+            }
+
+            private static int GetIntParam(IndexConfig? config, string key, int defaultValue)
+            {
+                if (config != null && config.Parameters != null && config.Parameters.TryGetValue(key, out var obj))
+                {
+                     if (obj is System.Text.Json.JsonElement je && je.ValueKind == System.Text.Json.JsonValueKind.Number)
+                         return je.GetInt32();
+                     if (obj is int val) return val;
+                     if (obj is long lVal) return (int)lVal;
+                     if (obj is string sVal && int.TryParse(sVal, out int parsed)) return parsed;
+                }
+                return defaultValue;
             }
 
             public int Dimension { get; }

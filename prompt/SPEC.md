@@ -842,6 +842,36 @@ C. Cache Eviction Policy Advisor（賢い追い出し）
 
 ---
 
+### 17.6 High-Performance Optimizations（v1.2以降）
+
+**目的**: 市場のベクターDB（Qdrant, Milvus, Redis）と競合するため、低レベルの性能最適化を実施。
+
+**A. SIMD & Memory Optimization**
+
+*   **距離計算のSIMD化**: `System.Runtime.Intrinsics.Vector256<float>` (AVX2) / `Vector512<float>` (AVX-512) を使用し、L2/Cosine/IP距離計算を4-8倍高速化。
+*   **Off-Heap Memory**: HNSWグラフノードを `NativeMemory` または Pinned Memory で管理し、GCストップタイム (STW) を削減。ノード間のポインタチェイシングを抑え、CPU L1/L2キャッシュヒット率を向上。
+*   **Bounds Check Elimination**: `unsafe` コードブロックとポインタ演算により、配列境界チェックのオーバーヘッドを排除。
+
+**B. Disk-Based HNSW (Tsavorite Integration / DiskANN)**
+
+*   **目的**: メモリ容量を超える大規模データセット（10億ベクトル超）をサポート。
+*   **仕組み**: Garnet が内包する **Tsavorite (旧 FASTER)** ハイブリッドログストレージエンジンを活用。
+    *   HNSWのグラフノードをメモリとSSD間で自動的にページング。
+    *   ホットなノード（頻繁にアクセスされるレイヤー0）はメモリに保持し、コールドなノードはディスクから読み取り。
+    *   Microsoft Research の DiskANN 論文をベースに、SSD I/O 特性に最適化したノード配置戦略を実装。
+*   **期待効果**: メモリ使用量をデータセットサイズの10-20%に抑えつつ、ミリ秒オーダーの検索レイテンシを維持。
+
+**C. Native RESP Vector API (Zero-Copy Networking)**
+
+*   **目的**: HTTP (ASP.NET Core) のオーバーヘッド（JSONシリアライズ、HTTPハンドシェイク）を排除し、ピーク性能を最大化。
+*   **仕組み**:
+    *   `VEC.SEARCH` / `VEC.ADD` 等のベクターコマンドを、Garnet の RESP パイプラインで直接処理。
+    *   クエリベクタおよび結果ベクタに **ゼロコピーバッファ** を適用し、メモリコピーを最小化。
+    *   Garnet の高効率 I/O スタック（io_uring / epoll）をフル活用。
+*   **期待効果**: HTTP API比で 2-3倍のスループット向上。
+
+---
+
 ## 18. 競合比較表
 
 | 機能 | 本製品 | Pinecone | Milvus | Weaviate |

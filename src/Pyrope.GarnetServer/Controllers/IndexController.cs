@@ -44,7 +44,16 @@ namespace Pyrope.GarnetServer.Controllers
             try
             {
                 var metric = Enum.Parse<VectorMetric>(request.Metric, true);
-                _registry.GetOrCreate(request.TenantId, request.IndexName, request.Dimension, metric);
+                
+                var config = new IndexConfig 
+                {
+                    Dimension = request.Dimension,
+                    Metric = request.Metric,
+                    Algorithm = request.Algorithm,
+                    Parameters = request.Parameters
+                };
+
+                _registry.GetOrCreate(request.TenantId, request.IndexName, request.Dimension, metric, config);
 
                 // Audit log
                 _auditLogger.Log(new AuditEvent(
@@ -53,7 +62,7 @@ namespace Pyrope.GarnetServer.Controllers
                     tenantId: request.TenantId,
                     userId: GetCurrentUserId(),
                     resourceId: request.IndexName,
-                    details: JsonSerializer.Serialize(new { request.Dimension, request.Metric }),
+                    details: JsonSerializer.Serialize(new { request.Dimension, request.Metric, request.Algorithm, request.Parameters }),
                     ipAddress: GetClientIp(),
                     success: true
                 ));
@@ -293,6 +302,8 @@ namespace Pyrope.GarnetServer.Controllers
         public string IndexName { get; set; } = "";
         public int Dimension { get; set; }
         public string Metric { get; set; } = "L2";
+        public string Algorithm { get; set; } = "IVF_FLAT";
+        public Dictionary<string, object> Parameters { get; set; } = new();
     }
 
     public class SnapshotRequest

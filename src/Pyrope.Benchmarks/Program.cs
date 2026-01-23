@@ -1,4 +1,5 @@
 ﻿using System;
+
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
@@ -49,6 +50,7 @@ public static class Program
         if (!string.IsNullOrWhiteSpace(options.HttpBaseUrl))
         {
             await EnsureTenantAsync(options.HttpBaseUrl!, options.AdminApiKey!, options.TenantId, options.TenantApiKey!);
+            await EnsureIndexAsync(options);
         }
 
         if (!string.IsNullOrWhiteSpace(options.HttpBaseUrl) &&
@@ -434,10 +436,65 @@ public static class Program
             var putPayload = JsonSerializer.Serialize(new { apiKey = tenantApiKey });
             using var put = new StringContent(putPayload, TextEncoding.UTF8, "application/json");
             var putRes = await http.PutAsync($"v1/tenants/{tenantId}/apikey", put);
+            if (!putRes.IsSuccessStatusCode)
+            {
+                 var err = await putRes.Content.ReadAsStringAsync();
+                 Console.Error.WriteLine($"[Error] EnsureTenantAsync (Put): {putRes.StatusCode} - {err}");
+            }
             putRes.EnsureSuccessStatusCode();
             return;
         }
 
+        if (!res.IsSuccessStatusCode)
+        {
+             var err = await res.Content.ReadAsStringAsync();
+             Console.Error.WriteLine($"[Error] EnsureTenantAsync (Post): {res.StatusCode} - {err}");
+        }
+        res.EnsureSuccessStatusCode();
+    }
+
+    private static async Task EnsureIndexAsync(Options options)
+    {
+        var baseUri = options.HttpBaseUrl!.EndsWith("/", StringComparison.Ordinal) ? options.HttpBaseUrl : options.HttpBaseUrl + "/";
+        using var http = new HttpClient { BaseAddress = new Uri(baseUri) };
+        http.DefaultRequestHeaders.Add("X-API-KEY", options.AdminApiKey);
+
+        // Check if exists? Or just Create with ignore if exists?
+        // API CreateIndex returns 200/201 on success.
+        
+        var parameters = new Dictionary<string, object>();
+        if (!string.IsNullOrWhiteSpace(options.Parameters))
+        {
+             // naive parsing: key=value,key2=value2
+             foreach(var p in options.Parameters.Split(','))
+             {
+                 var kv = p.Split('=');
+                 if(kv.Length == 2) parameters[kv[0].Trim()] = kv[1].Trim();
+             }
+        }
+
+        var req = new
+        {
+            tenantId = options.TenantId,
+            indexName = options.IndexName,
+            dimension = options.Dimension,
+            metric = "L2", // TODO: Configurable metric?
+            algorithm = options.Algorithm ?? "IVF_FLAT",
+            parameters = parameters
+        };
+
+        var payload = JsonSerializer.Serialize(req);
+        using var post = new StringContent(payload, TextEncoding.UTF8, "application/json");
+
+        // POST /v1/indexes
+        // If conflict (409), assume exists.
+        var res = await http.PostAsync("v1/indexes", post);
+        if (res.StatusCode == System.Net.HttpStatusCode.Conflict) return;
+        if (!res.IsSuccessStatusCode)
+        {
+             var err = await res.Content.ReadAsStringAsync();
+             Console.Error.WriteLine($"[Error] EnsureIndexAsync: {res.StatusCode} - {err}");
+        }
         res.EnsureSuccessStatusCode();
     }
 
@@ -507,7 +564,10 @@ public static class Program
         options.UniqueQueries = TryGetInt(map, "--unique-queries", options.UniqueQueries);
         options.Repeat = TryGetInt(map, "--repeat", options.Repeat);
         options.Sequence = map.ContainsKey("--sequence");
+        options.Sequence = map.ContainsKey("--sequence");
         options.BuildIndex = map.ContainsKey("--build-index");
+        options.Algorithm = map.TryGetValue("--algorithm", out var algo) ? algo : null;
+        options.Parameters = map.TryGetValue("--params", out var prms) ? prms : null;
 
         var payload = map.TryGetValue("--payload", out var payloadValue) ? payloadValue : null;
         if (!string.IsNullOrWhiteSpace(payload))
@@ -593,6 +653,9 @@ public static class Program
         Console.WriteLine("  --http <baseUrl>              e.g. http://127.0.0.1:5000");
         Console.WriteLine("  --admin-api-key <adminKey>    (required with --http) admin API key for /v1/*");
         Console.WriteLine("  --cache <off|on>              (default: off) when off + --http, disables cache and flushes");
+        Console.WriteLine("  --cache <off|on>              (default: off) when off + --http, disables cache and flushes");
+        Console.WriteLine("  --algorithm <algo>            (optional) Index algorithm (IVF_FLAT, HNSW)");
+        Console.WriteLine("  --params <k=v,k=v>            (optional) Index parameters (e.g. nlist=1024 / m=16,ef_construction=200)");
         Console.WriteLine();
         Console.WriteLine("Examples:");
         Console.WriteLine("  dotnet run --project src/Pyrope.GarnetServer -- --port 3278 --bind 127.0.0.1");
@@ -629,6 +692,8 @@ public static class Program
         public int Repeat { get; set; } = 1;
         public bool Sequence { get; set; }
         public bool BuildIndex { get; set; }
+        public string? Algorithm { get; set; }
+        public string? Parameters { get; set; }
     }
 
     private sealed record LoadResult(int Loaded, TimeSpan Elapsed, double Throughput);
