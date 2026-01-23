@@ -45,13 +45,13 @@ namespace Pyrope.GarnetServer.Vector
             try
             {
                 var result = new List<KeyValuePair<string, float[]>>(_nodes.Count);
-                for(int i = 0; i < _nodes.Count; i++)
+                for (int i = 0; i < _nodes.Count; i++)
                 {
-                   if(!_nodes[i].IsDeleted)
-                   {
-                       var vec = GetVectorSpan(i).ToArray(); // Clone for export
-                       result.Add(new KeyValuePair<string, float[]>(_nodes[i].ExternalId, vec));
-                   }
+                    if (!_nodes[i].IsDeleted)
+                    {
+                        var vec = GetVectorSpan(i).ToArray(); // Clone for export
+                        result.Add(new KeyValuePair<string, float[]>(_nodes[i].ExternalId, vec));
+                    }
                 }
                 return result;
             }
@@ -79,8 +79,8 @@ namespace Pyrope.GarnetServer.Vector
                 }
                 else if (Math.Abs(norm - 1.0f) <= 1e-4f)
                 {
-                     // Already close to 1, just use it
-                     vectorToAdd = vector;
+                    // Already close to 1, just use it
+                    vectorToAdd = vector;
                 }
             }
 
