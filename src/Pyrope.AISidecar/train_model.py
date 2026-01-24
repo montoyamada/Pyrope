@@ -58,13 +58,7 @@ def extract_features_and_labels(logs: List[Dict[str, Any]]) -> pd.DataFrame:
         else:
             label = 0  # Default
 
-        data.append({
-            "qps": qps,
-            "miss_rate": miss_rate,
-            "latency": latency,
-            "cpu": cpu,
-            "label": label
-        })
+        data.append({"qps": qps, "miss_rate": miss_rate, "latency": latency, "cpu": cpu, "label": label})
 
     return pd.DataFrame(data)
 
@@ -99,7 +93,7 @@ def train_and_export(data: pd.DataFrame, output_onnx: str):
 
     # Export to ONNX
     logger.info(f"Exporting to ONNX: {output_onnx}")
-    initial_type = [('float_input', FloatTensorType([None, 4]))]
+    initial_type = [("float_input", FloatTensorType([None, 4]))]
     onx = to_onnx(clf, X_train, initial_types=initial_type, target_opset=12)
 
     with open(output_onnx, "wb") as f:
@@ -113,6 +107,7 @@ def train_and_export(data: pd.DataFrame, output_onnx: str):
         # Runtime Verification (if onnxruntime is available)
         try:
             import onnxruntime as ort
+
             sess = ort.InferenceSession(output_onnx)
             input_name = sess.get_inputs()[0].name
             # Test with a dummy input
